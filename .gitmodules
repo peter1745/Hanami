@@ -1,0 +1,6 @@
+[submodule "mwl"]
+	path = mwl
+	url = https://github.com/peter1745/mwl
+[submodule "Kori"]
+	path = Kori
+	url = https://github.com/peter1745/Kori
