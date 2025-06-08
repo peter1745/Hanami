@@ -22,6 +22,13 @@ int main()
     std::stringstream ss;
     {
         std::ifstream stream("tests/parsing/basic.html");
+
+        if (!stream)
+        {
+            std::println("Failed reading html file. Does the file exist?");
+            return -1;
+        }
+
         ss << stream.rdbuf();
     }
 
