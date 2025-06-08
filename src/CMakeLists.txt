@@ -9,7 +9,10 @@ add_executable(hanami)
 
 target_sources(hanami
     PRIVATE
-        main.cpp)
+        main.cpp
+
+        # HTML
+        html/tokenizer.cpp)
 
 target_link_libraries(hanami
         PRIVATE
