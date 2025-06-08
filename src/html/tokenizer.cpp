@@ -1021,6 +1021,85 @@ namespace hanami::html {
                     current_attribute->value += c;
                     break;
                 }
+                case TokenizerState::AttributeValueUnquoted:
+                {
+                    // Consume the next input character:
+                    auto it = consume_next_character();
+
+                    if (it == source.end()) // EOF
+                    {
+                        // This is an eof-in-tag parse error.
+                        // parse_error(ErrorType::EOFInTag);
+
+                        // Emit an end-of-file token.
+                        emit_eof();
+                        break;
+                    }
+
+                    const auto c = *it;
+
+                    // U+0009 CHARACTER TABULATION (tab)
+                    // U+000A LINE FEED (LF)
+                    // U+000C FORM FEED (FF)
+                    // U+0020 SPACE
+                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                    {
+                        // Switch to the before attribute name state.
+                        state = TokenizerState::BeforeAttributeName;
+                        break;
+                    }
+
+                    // U+0026 AMPERSAND (&)
+                    if (c == '&')
+                    {
+                        // Set the return state to the attribute value (unquoted) state.
+                        return_state = TokenizerState::AttributeValueUnquoted;
+
+                        // Switch to the character reference state.
+                        state = TokenizerState::CharacterReference;
+                        break;
+                    }
+
+                    // U+003E GREATER-THAN SIGN (>)
+                    if (c == '>')
+                    {
+                        // Switch to the data state.
+                        state = TokenizerState::Data;
+
+                        // Emit the current tag token.
+                        result.emplace_back(current_token);
+                        break;
+                    }
+
+                    // U+0000 NULL
+                    if (c == '\0')
+                    {
+                        // This is an unexpected-null-character parse error.
+                        // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's value.
+                        current_attribute->value += "�";
+                        break;
+                    }
+
+                    // U+0022 QUOTATION MARK (")
+                    // U+0027 APOSTROPHE (')
+                    // U+003C LESS-THAN SIGN (<)
+                    // U+003D EQUALS SIGN (=)
+                    // U+0060 GRAVE ACCENT (`)
+                    if (c == '"' || c == '\'' || c == '<' || c == '=' || c == '`')
+                    {
+                        // This is an unexpected-character-in-unquoted-attribute-value parse error.
+                        // parse_error(ErrorType::UnexpectedCharacterInUnquotedAttributeValue);
+
+                        // Treat it as per the "anything else" entry below.
+                    }
+
+                    // Anything else
+                    // Append the current input character to the current attribute's value.
+                    current_attribute->value += c;
+                    break;
+                }
                 case TokenizerState::AfterAttributeValueQuoted:
                 {
                     // Consume the next input character:
