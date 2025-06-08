@@ -723,6 +723,56 @@ namespace hanami::html {
                     }, current_token);
                     break;
                 }
+                case TokenizerState::SelfClosingStartTag:
+                {
+                    // Consume the next input character:
+                    auto it = consume_next_character();
+
+                    if (it == source.end()) // EOF
+                    {
+                        // This is an eof-in-tag parse error.
+                        // parse_error(ErrorType::EOFInTag);
+
+                        // Emit an end-of-file token.
+                        emit_eof();
+                        break;
+                    }
+
+                    const auto c = *it;
+
+                    // U+003E GREATER-THAN SIGN (>)
+                    if (c == '>')
+                    {
+                        // Set the self-closing flag of the current tag token.
+                        std::visit(kori::VariantOverloadSet {
+                            [&](StartTagToken& token)
+                            {
+                                token.self_closing = true;
+                            },
+                            [&](EndTagToken& token)
+                            {
+                                token.self_closing = true;
+                            },
+                            [](auto&&){ raise(SIGTRAP); }
+                        }, current_token);
+
+                        // Switch to the data state.
+                        state = TokenizerState::Data;
+
+                        // Emit the current tag token.
+                        result.emplace_back(current_token);
+                        break;
+                    }
+
+                    // Anything else
+                    // This is an unexpected-solidus-in-tag parse error.
+                    // parse_error(ErrorType::UnexpectedSolidusInTag);
+
+                    // Reconsume in the before attribute name state.
+                    --next_char;
+                    state = TokenizerState::BeforeAttributeName;
+                    break;
+                }
                 case TokenizerState::BeforeAttributeName:
                 {
                     // Consume the next input character:
