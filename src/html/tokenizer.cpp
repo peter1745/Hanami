@@ -35,6 +35,13 @@ namespace hanami::html {
         AttributeValueSingleQuoted,
         AttributeValueUnquoted,
         AfterAttributeValueQuoted,
+        CommentStartDash,
+        Comment,
+        CommentLessThanSign,
+        CommentEndDash,
+        CommentEnd,
+        CommentEndBang,
+        CommentLessThanSignBang,
     };
 
     // https://infra.spec.whatwg.org/#ascii-upper-alpha
@@ -123,6 +130,11 @@ namespace hanami::html {
             return { next_char, next_char + n };
         };
 
+        auto emit_eof = [&]
+        {
+            result.emplace_back(EOFToken{});
+        };
+
         auto temporary_buffer = std::string{};
         auto current_token = Token{};
         TagAttribute* current_attribute = nullptr;
@@ -139,7 +151,7 @@ namespace hanami::html {
                     if (it == source.end()) // EOF
                     {
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -189,7 +201,7 @@ namespace hanami::html {
 
                         // Emit a U+003C LESS-THAN SIGN character token and an end-of-file token.
                         result.emplace_back(CharacterToken{ '<' });
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -259,7 +271,7 @@ namespace hanami::html {
                         // Emit a U+003C LESS-THAN SIGN character token, a U+002F SOLIDUS character token and an end-of-file token.
                         result.emplace_back(CharacterToken{ '<' });
                         result.emplace_back(CharacterToken{ '/' });
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -372,7 +384,7 @@ namespace hanami::html {
                         result.emplace_back(current_token);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -426,7 +438,7 @@ namespace hanami::html {
                         result.emplace_back(current_token);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -517,7 +529,7 @@ namespace hanami::html {
                         result.emplace_back(current_token);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -583,7 +595,7 @@ namespace hanami::html {
                     if (is_ascii_alpha_numeric(c)) // ASCII alphanumeric
                     {
                         // Reconsume in the named character reference state.
-                        state = TokenizerState::CharacterReference;
+                        state = TokenizerState::NamedCharacterReference;
                         --next_char;
                         break;
                     }
@@ -621,7 +633,7 @@ namespace hanami::html {
                         // parse_error(ErrorType::EOFInTag);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -918,7 +930,7 @@ namespace hanami::html {
                         // parse_error(ErrorType::EOFInTag);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -970,7 +982,7 @@ namespace hanami::html {
                         // parse_error(ErrorType::EOFInTag);
 
                         // Emit an end-of-file token.
-                        result.emplace_back(EOFToken{});
+                        emit_eof();
                         break;
                     }
 
@@ -1013,6 +1025,220 @@ namespace hanami::html {
                     // Reconsume in the before attribute name state.
                     --next_char;
                     state = TokenizerState::BeforeAttributeName;
+                    break;
+                }
+                case TokenizerState::CommentStart:
+                {
+                    // Consume the next input character:
+                    auto c = *consume_next_character();
+
+                    // U+002D HYPHEN-MINUS (-)
+                    if (c == '-')
+                    {
+                        // Switch to the comment start dash state.
+                        state = TokenizerState::CommentStartDash;
+                        break;
+                    }
+
+                    // U+003E GREATER-THAN SIGN (>)
+                    if (c == '>')
+                    {
+                        // This is an abrupt-closing-of-empty-comment parse error.
+                        // parse_error(ErrorType::AbruptClosingOfEmptyComment);
+
+                        // Switch to the data state.
+                        state = TokenizerState::Data;
+
+                        // Emit the current comment token.
+                        result.emplace_back(current_token);
+                        break;
+                    }
+
+                    // Anything else
+                    // Reconsume in the comment state.
+                    --next_char;
+                    state = TokenizerState::Comment;
+                    break;
+                }
+                case TokenizerState::Comment:
+                {
+                    // Consume the next input character:
+                    auto it = consume_next_character();
+
+                    // EOF
+                    if (it == source.end())
+                    {
+                        // This is an eof-in-comment parse error.
+                        // parse_error(ErrorType::EOFInComment);
+
+                        // Emit the current comment token.
+                        result.emplace_back(current_token);
+
+                        // Emit an end-of-file token.
+                        emit_eof();
+                        break;
+                    }
+
+                    const auto c = *it;
+
+                    // U+003C LESS-THAN SIGN (<)
+                    if (c == '<')
+                    {
+                        // Append the current input character to the comment token's data.
+                        std::get<CommentToken>(current_token).data += c;
+
+                        // Switch to the comment less-than sign state.
+                        state = TokenizerState::CommentLessThanSign;
+                        break;
+                    }
+
+                    // U+002D HYPHEN-MINUS (-)
+                    if (c == '-')
+                    {
+                        // Switch to the comment end dash state.
+                        state = TokenizerState::CommentEndDash;
+                        break;
+                    }
+
+                    // U+0000 NULL
+                    if (c == '\0')
+                    {
+                        // This is an unexpected-null-character parse error.
+                        // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                        // Append a U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
+                        std::get<CommentToken>(current_token).data += "�";
+                        break;
+                    }
+
+                    // Anything else
+                    // Append the current input character to the comment token's data.
+                    std::get<CommentToken>(current_token).data += c;
+                    break;
+                }
+                case TokenizerState::CommentEndDash:
+                {
+                    // Consume the next input character:
+                    auto it = consume_next_character();
+
+                    // EOF
+                    if (it == source.end())
+                    {
+                        // This is an eof-in-comment parse error.
+                        // parse_error(ErrorType::EOFInComment);
+
+                        // Emit the current comment token.
+                        result.emplace_back(current_token);
+
+                        // Emit an end-of-file token.
+                        emit_eof();
+                        break;
+                    }
+
+                    const auto c = *it;
+
+                    // U+002D HYPHEN-MINUS (-)
+                    if (c == '-')
+                    {
+                        // Switch to the comment end state.
+                        state = TokenizerState::CommentEnd;
+                        break;
+                    }
+
+                    // Anything else
+                    // Append a U+002D HYPHEN-MINUS character (-) to the comment token's data.
+                    std::get<CommentToken>(current_token).data += '-';
+
+                    // Reconsume in the comment state.
+                    --next_char;
+                    state = TokenizerState::Comment;
+                    break;
+                }
+                case TokenizerState::CommentEnd:
+                {
+                    // Consume the next input character:
+                    auto it = consume_next_character();
+
+                    // EOF
+                    if (it == source.end())
+                    {
+                        // This is an eof-in-comment parse error.
+                        // parse_error(ErrorType::EOFInComment);
+
+                        // Emit the current comment token.
+                        result.emplace_back(current_token);
+
+                        // Emit an end-of-file token.
+                        emit_eof();
+                        break;
+                    }
+
+                    const auto c = *it;
+
+                    // U+003E GREATER-THAN SIGN (>)
+                    if (c == '>')
+                    {
+                        // Switch to the data state.
+                        state = TokenizerState::Data;
+
+                        // Emit the current comment token.
+                        result.emplace_back(current_token);
+                        break;
+                    }
+
+                    // U+0021 EXCLAMATION MARK (!)
+                    if (c == '!')
+                    {
+                        // Switch to the comment end bang state.
+                        state = TokenizerState::CommentEndBang;
+                        break;
+                    }
+
+                    // U+002D HYPHEN-MINUS (-)
+                    if (c == '-')
+                    {
+                        // Append a U+002D HYPHEN-MINUS character (-) to the comment token's data.
+                        std::get<CommentToken>(current_token).data += '-';
+                        break;
+                    }
+
+                    // Anything else
+                    // Append two U+002D HYPHEN-MINUS characters (-) to the comment token's data.
+                    std::get<CommentToken>(current_token).data += "--";
+
+                    // Reconsume in the comment state.
+                    --next_char;
+                    state = TokenizerState::Comment;
+                    break;
+                }
+                case TokenizerState::CommentLessThanSign:
+                {
+                    // Consume the next input character:
+                    const auto c = *consume_next_character();
+
+                    // U+0021 EXCLAMATION MARK (!)
+                    if (c == '!')
+                    {
+                        // Append the current input character to the comment token's data.
+                        std::get<CommentToken>(current_token).data += c;
+
+                        // Switch to the comment less-than sign bang state.
+                        state = TokenizerState::CommentLessThanSignBang;
+                        break;
+                    }
+
+                    // U+003C LESS-THAN SIGN (<)
+                    if (c == '<')
+                    {
+                        // Append the current input character to the comment token's data.
+                        std::get<CommentToken>(current_token).data += c;
+                        break;
+                    }
+
+                    // Anything else
+                    // Reconsume in the comment state.
+                    --next_char;
+                    state = TokenizerState::Comment;
                     break;
                 }
                 default:
