@@ -80,6 +80,8 @@ namespace hanami::html {
         using EmitTokenFunc = std::function<void(const Token&)>;
         void start(std::string_view input, EmitTokenFunc func);
 
+        static void print_token(const Token& t);
+
     public:
         enum class State
         {

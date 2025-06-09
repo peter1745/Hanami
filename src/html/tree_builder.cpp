@@ -5,8 +5,8 @@
 
 #include "kori/core.hpp"
 
-#define TODO(...) raise(SIGTRAP)
-//#define TODO(...)
+//#define TODO(...) raise(SIGTRAP)
+#define TODO(...)
 
 namespace hanami::html {
 
@@ -67,25 +67,20 @@ namespace hanami::html {
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
-    void TreeBuilder::process_all_tokens(std::span<const Token> tokens)
+    void TreeBuilder::process_token(const Token& token)
     {
-        size_t current_token_idx = 0;
-
-        auto consume_token = [&] -> const Token&
+        auto is_special_character_token = [&] -> bool
         {
-            return tokens[current_token_idx++];
+            // Character token that is one of U+0009 CHARACTER TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN (CR), or U+0020 SPACE
+            auto* c = std::get_if<CharacterToken>(&token);
+            return c && (c->data == '\t' || c->data == '\n' || c->data == '\f' || c->data == '\r' || c->data == ' ');
         };
 
-        while (current_token_idx < tokens.size())
-        {
-            const auto& token = consume_token();
+        bool reprocess;
 
-            auto is_special_character_token = [&] -> bool
-            {
-                // Character token that is one of U+0009 CHARACTER TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN (CR), or U+0020 SPACE
-                auto* c = std::get_if<CharacterToken>(&token);
-                return c && (c->data == '\t' || c->data == '\n' || c->data == '\f' || c->data == '\r' || c->data == ' ');
-            };
+        do
+        {
+            reprocess = false;
 
             if (
                 // If the stack of open elements is empty
@@ -177,7 +172,7 @@ namespace hanami::html {
 
                         // In any case, switch the insertion mode to "before html", then reprocess the token.
                         m_insertion_mode = TreeInsertionMode::BeforeHTML;
-                        --current_token_idx;
+                        reprocess = true;
                         break;
                     }
                     case TreeInsertionMode::BeforeHTML:
@@ -250,8 +245,7 @@ namespace hanami::html {
 
                         // Switch the insertion mode to "before head", then reprocess the token.
                         m_insertion_mode = TreeInsertionMode::BeforeHead;
-
-                        --current_token_idx;
+                        reprocess = true;
 
                         // The document element can end up being removed from the Document object, e.g. by scripts;
                         // nothing in particular happens in such cases, content continues being appended to the nodes as described in the next section.
@@ -335,7 +329,7 @@ namespace hanami::html {
                         m_insertion_mode = TreeInsertionMode::InHead;
 
                         // Reprocess the current token.
-                        --current_token_idx;
+                        reprocess = true;
                         break;
                     }
                     case TreeInsertionMode::InHead:
@@ -493,7 +487,7 @@ namespace hanami::html {
                                 m_insertion_mode = TreeInsertionMode::AfterHead;
 
                                 // Reprocess the token.
-                                --current_token_idx;
+                                reprocess = true;
                                 break;
                             }
 
@@ -520,7 +514,7 @@ namespace hanami::html {
                         m_insertion_mode = TreeInsertionMode::AfterHead;
 
                         // Reprocess the token.
-                        --current_token_idx;
+                        reprocess = true;
                         break;
                     }
                     default:
@@ -551,7 +545,7 @@ namespace hanami::html {
             // An SVG foreignObject element
             // An SVG desc element
             // An SVG title element
-        }
+        } while (reprocess);
     }
 
     auto TreeBuilder::current_node() const noexcept -> Element*

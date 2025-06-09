@@ -160,7 +160,7 @@ namespace hanami::html {
         std::optional<std::string_view> namespace_prefix{std::nullopt};
 
         // A non-empty string.
-        std::string_view local_name;
+        std::string local_name;
 
         // TODO(Peter): Custom Elements
         // custom element registry

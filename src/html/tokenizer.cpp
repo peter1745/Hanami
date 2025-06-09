@@ -52,6 +52,49 @@ namespace hanami::html {
         return true;
     }
 
+    void Tokenizer::print_token(const Token& t)
+    {
+        std::visit(kori::VariantOverloadSet {
+            [](const DOCTYPEToken& token)
+            {
+                std::println("DOCTYPE(name = {}, force_quirks = {})", token.name, token.force_quirks);
+            },
+            [](const StartTagToken& token)
+            {
+                std::println("StartTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
+                for (const auto& attr : token.attributes)
+                {
+                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
+                }
+            },
+            [](const EndTagToken& token)
+            {
+                std::println("EndTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
+                for (const auto& attr : token.attributes)
+                {
+                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
+                }
+            },
+            [](const CommentToken& token)
+            {
+                std::println("CommentToken(data = {})", token.data);
+            },
+            [](const CharacterToken& token)
+            {
+                if (token.data == '\n' || token.data == ' ')
+                {
+                    return;
+                }
+
+                std::println("CharacterToken(data = {})", token.data);
+            },
+            [](const EOFToken&)
+            {
+                std::println("EOFToken");
+            }
+        }, t);
+    }
+
     void Tokenizer::start(std::string_view input, EmitTokenFunc func)
     {
         m_emit_token = std::move(func);
@@ -77,6 +120,8 @@ namespace hanami::html {
             return;
         }
 
+        std::println("Tokenizer: Emitting token:");
+        print_token(token);
         m_emit_token(token);
     }
 
