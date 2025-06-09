@@ -10,40 +10,6 @@
 
 namespace hanami::html {
 
-    enum class TokenizerState
-    {
-        Data,
-        CharacterReference,
-        TagOpen,
-        NamedCharacterReference,
-        NumericCharacterReference,
-        MarkupDeclarationOpen,
-        EndTagOpen,
-        TagName,
-        BogusComment,
-        CommentStart,
-        DOCTYPE,
-        BeforeDOCTYPEName,
-        DOCTYPEName,
-        AfterDOCTYPEName,
-        BeforeAttributeName,
-        SelfClosingStartTag,
-        AfterAttributeName,
-        AttributeName,
-        BeforeAttributeValue,
-        AttributeValueDoubleQuoted,
-        AttributeValueSingleQuoted,
-        AttributeValueUnquoted,
-        AfterAttributeValueQuoted,
-        CommentStartDash,
-        Comment,
-        CommentLessThanSign,
-        CommentEndDash,
-        CommentEnd,
-        CommentEndBang,
-        CommentLessThanSignBang,
-    };
-
     // https://infra.spec.whatwg.org/#ascii-upper-alpha
     static auto is_ascii_upper_alpha(char c) -> bool
     {
@@ -86,664 +52,637 @@ namespace hanami::html {
         return true;
     }
 
-    // https://html.spec.whatwg.org/multipage/parsing.html#tokenization
-    auto Tokenizer::tokenize(std::string_view input) -> std::vector<Token>
+    void Tokenizer::start(std::string_view input, EmitTokenFunc func)
     {
-        auto result = std::vector<Token>{};
-        auto source = std::string{ input };
+        m_emit_token = std::move(func);
+        m_input_stream = input;
+        m_state = State::Data;
 
-        // https://infra.spec.whatwg.org/#normalize-newlines
-        source = std::regex_replace(std::string{ input }, std::regex("\r\n"), "\n");
-        std::ranges::replace(source, '\r', '\n');
-
-        // Tokenization
-        auto next_char = source.begin();
-        auto current_char = std::string::iterator{};
-
-        auto state = TokenizerState::Data;
-        auto return_state = TokenizerState::Data;
-        (void)return_state;
-
-        auto consume_next_character = [&]
+        while (true)
         {
-            current_char = next_char;
+            // TODO(Peter): Check parser pause flag and abort if set
 
-            if (current_char == source.end())
+            if (process_next_token() == ProcessResult::Abort)
             {
-                return current_char;
+                break;
             }
+        }
+    }
 
-            ++next_char;
-            return current_char;
-        };
-
-        auto consume_n_characters = [&](size_t n)
+    void Tokenizer::emit_token(const Token& token) const
+    {
+        if (!m_emit_token)
         {
-            for (size_t i = 0; i < n; ++i)
+            raise(SIGTRAP);
+            return;
+        }
+
+        m_emit_token(token);
+    }
+
+    auto Tokenizer::consume_multiple_chars(size_t count) noexcept -> std::string_view
+    {
+        // Try to consume count number of characters
+        const auto view = m_input_stream.substr(m_current_char_idx, count);
+
+        // Advance by the amount of characters we successfully consumed (might be smaller than count)
+        m_current_char_idx += view.length();
+
+        // Return
+        return view;
+    }
+
+    auto Tokenizer::consume_next_character() noexcept -> char
+    {
+        if (m_current_char_idx + 1 > m_input_stream.length())
+        {
+            // EOF, unable to consume more characters.
+            return '\0';
+        }
+
+        return m_input_stream[m_current_char_idx++];
+    }
+
+    void Tokenizer::reconsume_in(State state) noexcept
+    {
+        --m_current_char_idx;
+        m_state = state;
+    }
+
+    auto Tokenizer::reached_eof() const noexcept -> bool
+    {
+        return m_current_char_idx >= m_input_stream.length();
+    }
+
+    auto Tokenizer::next_characters_equals(std::string_view chars, bool case_insensitive) const noexcept -> bool
+    {
+        if (m_current_char_idx + chars.length() >= m_input_stream.length())
+        {
+            return false;
+        }
+
+        if (!case_insensitive)
+        {
+            return m_input_stream.compare(m_current_char_idx, chars.length(), chars) == 0;
+        }
+
+        return equals_case_insensitive(m_input_stream.substr(m_current_char_idx, chars.length()) , chars);
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#tokenization
+    auto Tokenizer::process_next_token() -> ProcessResult
+    {
+        switch (m_state)
+        {
+            case State::Data:
             {
-                (void)consume_next_character();
-            }
-        };
+                // Consume the next input character
+                const char c = consume_next_character();
 
-        auto inspect_chars_forward = [&](size_t n) -> std::string_view
-        {
-            return { next_char, next_char + n };
-        };
-
-        auto emit_eof = [&]
-        {
-            result.emplace_back(EOFToken{});
-        };
-
-        auto temporary_buffer = std::string{};
-        auto current_token = Token{};
-        TagAttribute* current_attribute = nullptr;
-
-        while (current_char != source.end())
-        {
-            switch (state)
-            {
-                case TokenizerState::Data:
+                // EOF
+                if (reached_eof())
                 {
-                    // Consume the next input character
-                    auto it = consume_next_character();
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                    if (it == source.end()) // EOF
-                    {
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
+                if (c == '&') // U+0026 AMPERSAND (&)
+                {
+                    // Set the return state to the data state.
+                    m_return_state = State::Data;
 
-                    const auto c = *it;
+                    // Switch to the character reference state.
+                    m_state = State::CharacterReference;
+                    break;
+                }
 
-                    if (c == '&') // U+0026 AMPERSAND (&)
-                    {
-                        // Set the return state to the data state.
-                        return_state = TokenizerState::Data;
+                if (c == '<') // U+003C LESS-THAN SIGN (<)
+                {
+                    // Switch to the tag open state.
+                    m_state = State::TagOpen;
+                    break;
+                }
 
-                        // Switch to the character reference state.
-                        state = TokenizerState::CharacterReference;
-                        break;
-                    }
+                if (c == '\0') // U+0000 NULL
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
 
-                    if (c == '<') // U+003C LESS-THAN SIGN (<)
-                    {
-                        // Switch to the tag open state.
-                        state = TokenizerState::TagOpen;
-                        break;
-                    }
-
-                    if (c == '\0') // U+0000 NULL
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
-
-                        // Emit the current input character as a character token.
-                        result.emplace_back(CharacterToken{ c });
-                        break;
-                    }
-
-                    // Anything else
                     // Emit the current input character as a character token.
-                    result.emplace_back(CharacterToken{ c });
+                    emit_token(CharacterToken{ c });
                     break;
                 }
-                case TokenizerState::TagOpen:
+
+                // Anything else
+                // Emit the current input character as a character token.
+                emit_token(CharacterToken{ c });
+                break;
+            }
+            case State::TagOpen:
+            {
+                // Consume the next input character
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
                 {
-                    // Consume the next input character
-                    auto it = consume_next_character();
+                    // This is an eof-before-tag-name parse error.
+                    // parse_error(ErrorType::EOFBeforeTagName);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-before-tag-name parse error.
-                        // parse_error(ErrorType::EOFBeforeTagName);
+                    // Emit a U+003C LESS-THAN SIGN character token and an end-of-file token.
+                    emit_token(CharacterToken{ '<' });
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                        // Emit a U+003C LESS-THAN SIGN character token and an end-of-file token.
-                        result.emplace_back(CharacterToken{ '<' });
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    if (c == '!') // U+0021 EXCLAMATION MARK (!)
-                    {
-                        // Switch to the markup declaration open state.
-                        state = TokenizerState::MarkupDeclarationOpen;
-                        break;
-                    }
-
-                    if (c == '/') // U+002F SOLIDUS (/)
-                    {
-                        // Switch to the end tag open state.
-                        state = TokenizerState::EndTagOpen;
-                        break;
-                    }
-
-                    if (is_ascii_alpha(c)) // ASCII alpha
-                    {
-                        // Create a new start tag token, set its tag name to the empty string.
-                        current_token = StartTagToken{ "" };
-
-                        // Reconsume in the tag name state.
-                        --next_char;
-                        state = TokenizerState::TagName;
-                        break;
-                    }
-
-                    if (c == '?') // U+003F QUESTION MARK (?)
-                    {
-                        // This is an unexpected-question-mark-instead-of-tag-name parse error.
-                        // parse_error(ErrorType::UnexpectedQuestionMarkInsteadOfTagName);
-
-                        // Create a comment token whose data is the empty string.
-                        current_token = CommentToken{ "" };
-
-                        // Reconsume in the bogus comment state.
-                        --next_char;
-                        state = TokenizerState::BogusComment;
-                        break;
-                    }
-
-                    // Anything else
-                    // This is an invalid-first-character-of-tag-name parse error.
-                    // parse_error(ErrorType::InvalidFirstCharacterOfTagName);
-
-                    // Emit a U+003C LESS-THAN SIGN character token.
-                    result.emplace_back(CharacterToken{ '<' });
-
-                    // Reconsume in the data state.
-                    --next_char;
-                    state = TokenizerState::Data;
+                if (c == '!') // U+0021 EXCLAMATION MARK (!)
+                {
+                    // Switch to the markup declaration open state.
+                    m_state = State::MarkupDeclarationOpen;
                     break;
                 }
-                case TokenizerState::EndTagOpen:
+
+                if (c == '/') // U+002F SOLIDUS (/)
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Switch to the end tag open state.
+                    m_state = State::EndTagOpen;
+                    break;
+                }
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-before-tag-name parse error.
-                        // parse_error(ErrorType::EOFBeforeTagName);
+                if (is_ascii_alpha(c)) // ASCII alpha
+                {
+                    // Create a new start tag token, set its tag name to the empty string.
+                    m_current_token = StartTagToken{ "" };
 
-                        // Emit a U+003C LESS-THAN SIGN character token, a U+002F SOLIDUS character token and an end-of-file token.
-                        result.emplace_back(CharacterToken{ '<' });
-                        result.emplace_back(CharacterToken{ '/' });
-                        emit_eof();
-                        break;
-                    }
+                    // Reconsume in the tag name state.
+                    reconsume_in(State::TagName);
+                    break;
+                }
 
-                    const auto c = *it;
-
-                    // ASCII alpha
-                    if (is_ascii_alpha(c))
-                    {
-                        // Create a new end tag token, set its tag name to the empty string.
-                        current_token = EndTagToken { "" };
-
-                        // Reconsume in the tag name state.
-                        --next_char;
-                        state = TokenizerState::TagName;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // This is a missing-end-tag-name parse error.
-                        // parse_error(ErrorType::MissingEndTagName);
-
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-                        break;
-                    }
-
-                    // Anything else
-                    // This is an invalid-first-character-of-tag-name parse error.
-                    // parse_error(ErrorType::InvalidFirstCharacterOfTagName);
+                if (c == '?') // U+003F QUESTION MARK (?)
+                {
+                    // This is an unexpected-question-mark-instead-of-tag-name parse error.
+                    // parse_error(ErrorType::UnexpectedQuestionMarkInsteadOfTagName);
 
                     // Create a comment token whose data is the empty string.
-                    current_token = CommentToken{ "" };
+                    m_current_token = CommentToken{ "" };
 
                     // Reconsume in the bogus comment state.
-                    state = TokenizerState::BogusComment;
+                    reconsume_in(State::BogusComment);
                     break;
                 }
-                case TokenizerState::MarkupDeclarationOpen:
+
+                // Anything else
+                // This is an invalid-first-character-of-tag-name parse error.
+                // parse_error(ErrorType::InvalidFirstCharacterOfTagName);
+
+                // Emit a U+003C LESS-THAN SIGN character token.
+                emit_token(CharacterToken{ '<' });
+
+                // Reconsume in the data state.
+                reconsume_in(State::Data);
+                break;
+            }
+            case State::EndTagOpen:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
                 {
-                    // If the next few characters are:
-                    // Two U+002D HYPHEN-MINUS characters (-)
-                    if (inspect_chars_forward(2) == "--")
-                    {
-                        // Consume those two characters
-                        consume_n_characters(2);
+                    // This is an eof-before-tag-name parse error.
+                    // parse_error(ErrorType::EOFBeforeTagName);
 
-                        // Create a comment token whose data is the empty string
-                        current_token = CommentToken{ "" };
+                    // Emit a U+003C LESS-THAN SIGN character token, a U+002F SOLIDUS character token and an end-of-file token.
+                    emit_token(CharacterToken{ '<' });
+                    emit_token(CharacterToken{ '/' });
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                        // Switch to the comment start state.
-                        state = TokenizerState::CommentStart;
-                        break;
-                    }
+                // ASCII alpha
+                if (is_ascii_alpha(c))
+                {
+                    // Create a new end tag token, set its tag name to the empty string.
+                    m_current_token = EndTagToken { "" };
 
-                    // ASCII case-insensitive match for the word "DOCTYPE"
-                    auto doctype_length = std::strlen("DOCTYPE");
-                    if (equals_case_insensitive(inspect_chars_forward(doctype_length), "DOCTYPE"))
-                    {
-                        // Consume those characters
-                        consume_n_characters(doctype_length);
-
-                        // Switch to the DOCTYPE state.
-                        state = TokenizerState::DOCTYPE;
-                        break;
-                    }
-
-                    // The string "[CDATA[" (the five uppercase letters "CDATA" with a U+005B LEFT SQUARE BRACKET character before and after)
-                    auto cdata_length = std::strlen("[CDATA[");
-                    if (inspect_chars_forward(cdata_length) == "[CDATA[")
-                    {
-                        // Consume those characters.
-                        // If there is an adjusted current node and it is not an element in the HTML namespace, then switch to the CDATA section state.
-                        // Otherwise, this is a cdata-in-html-content parse error.
-                        // Create a comment token whose data is the "[CDATA[" string.
-                        // Switch to the bogus comment state.
-                        raise(SIGTRAP);
-                        break;
-                    }
-
-                    // Anything else
-                    // This is an incorrectly-opened-comment parse error.
-                    // parse_error(ErrorType::IncorrectlyOpenedComment);
-
-                    // Create a comment token whose data is the empty string.
-                    current_token = CommentToken{ "" };
-
-                    // Switch to the bogus comment state (don't consume anything in the current state).
-                    state = TokenizerState::BogusComment;
+                    // Reconsume in the tag name state.
+                    reconsume_in(State::TagName);
                     break;
                 }
-                case TokenizerState::DOCTYPE:
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is a missing-end-tag-name parse error.
+                    // parse_error(ErrorType::MissingEndTagName);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-doctype parse error.
-                        // parse_error(ErrorType::EOFInDOCTYPE);
-
-                        // Create a new DOCTYPE token.
-                        // Set its force-quirks flag to on.
-                        current_token = DOCTYPEToken {
-                            .force_quirks = true
-                        };
-
-                        // Emit the current token.
-                        result.emplace_back(current_token);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Switch to the before DOCTYPE name state.
-                        state = TokenizerState::BeforeDOCTYPEName;
-                        break;
-                    }
-
-                    if (c == '>') // U+003E GREATER-THAN SIGN (>)
-                    {
-                        // Reconsume in the before DOCTYPE name state.
-                        --next_char;
-                        state = TokenizerState::BeforeDOCTYPEName;
-                        break;
-                    }
-
-                    // Anything else
-                    // This is a missing-whitespace-before-doctype-name parse error.
-                    // parse_error(ErrorType::MissingWhitespaceBeforeDOCTYPEName);
-
-                    // Reconsume in the before DOCTYPE name state.
-                    --next_char;
-                    state = TokenizerState::BeforeDOCTYPEName;
+                    // Switch to the data state.
+                    m_state = State::Data;
                     break;
                 }
-                case TokenizerState::BeforeDOCTYPEName:
+
+                // Anything else
+                // This is an invalid-first-character-of-tag-name parse error.
+                // parse_error(ErrorType::InvalidFirstCharacterOfTagName);
+
+                // Create a comment token whose data is the empty string.
+                m_current_token = CommentToken{ "" };
+
+                // Reconsume in the bogus comment state.
+                reconsume_in(State::BogusComment);
+                break;
+            }
+            case State::MarkupDeclarationOpen:
+            {
+                // If the next few characters are:
+                // Two U+002D HYPHEN-MINUS characters (-)
+                if (next_characters_equals("--"))
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Consume those two characters
+                    consume_multiple_chars(2);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-doctype parse error.
-                        // parse_error(ErrorType::EOFInDOCTYPE);
+                    // Create a comment token whose data is the empty string
+                    m_current_token = CommentToken{ "" };
 
-                        // Create a new DOCTYPE token.
-                        // Set its force-quirks flag to on.
-                        current_token = DOCTYPEToken {
-                            .force_quirks = true
-                        };
+                    // Switch to the comment start state.
+                    m_state = State::CommentStart;
+                    break;
+                }
 
-                        // Emit the current token.
-                        result.emplace_back(current_token);
+                // ASCII case-insensitive match for the word "DOCTYPE"
+                if (next_characters_equals("DOCTYPE", true))
+                {
+                    // Consume those characters
+                    consume_multiple_chars(std::strlen("DOCTYPE"));
 
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
+                    // Switch to the DOCTYPE state.
+                    m_state = State::DOCTYPE;
+                    break;
+                }
 
-                    const auto c = *it;
+                // The string "[CDATA[" (the five uppercase letters "CDATA" with a U+005B LEFT SQUARE BRACKET character before and after)
+                if (next_characters_equals("[CDATA["))
+                {
+                    // Consume those characters.
+                    consume_multiple_chars(std::strlen("[CDATA["));
+                    
+                    // If there is an adjusted current node and it is not an element in the HTML namespace, then switch to the CDATA section state.
+                    // Otherwise, this is a cdata-in-html-content parse error.
+                    // Create a comment token whose data is the "[CDATA[" string.
+                    // Switch to the bogus comment state.
+                    raise(SIGTRAP);
+                    break;
+                }
 
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Ignore the character.
-                        break;
-                    }
+                // Anything else
+                // This is an incorrectly-opened-comment parse error.
+                // parse_error(ErrorType::IncorrectlyOpenedComment);
 
-                    // ASCII upper alpha
-                    if (is_ascii_upper_alpha(c))
-                    {
-                        // Create a new DOCTYPE token.
-                        // Set the token's name to the lowercase version of the current input character (add 0x0020 to the character's code point).
-                        current_token = DOCTYPEToken {
-                            .name = std::string{ static_cast<char>(std::tolower(c)) }
-                        };
+                // Create a comment token whose data is the empty string.
+                m_current_token = CommentToken{ "" };
 
-                        // Switch to the DOCTYPE name state.
-                        state = TokenizerState::DOCTYPEName;
-                        break;
-                    }
+                // Switch to the bogus comment state (don't consume anything in the current state).
+                m_state = State::BogusComment;
+                break;
+            }
+            case State::DOCTYPE:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-doctype parse error.
+                    // parse_error(ErrorType::EOFInDOCTYPE);
 
-                        // Create a new DOCTYPE token.
-                        // Set the token's name to a U+FFFD REPLACEMENT CHARACTER character.
-                        current_token = DOCTYPEToken {
-                            .name = "�"
-                        };
-
-                        // Switch to the DOCTYPE name state.
-                        state = TokenizerState::DOCTYPEName;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // This is a missing-doctype-name parse error.
-                        // parse_error(ErrorType::MissingDOCTYPEName);
-
-                        // Create a new DOCTYPE token.
-                        // Set its force-quirks flag to on.
-                        current_token = DOCTYPEToken { .force_quirks = true };
-
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // Anything else
                     // Create a new DOCTYPE token.
-                    // Set the token's name to the current input character.
-                    current_token = DOCTYPEToken { .name = { c } };
+                    // Set its force-quirks flag to on.
+                    m_current_token = DOCTYPEToken {
+                        .force_quirks = true
+                    };
+
+                    // Emit the current token.
+                    emit_token(m_current_token);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Switch to the before DOCTYPE name state.
+                    m_state = State::BeforeDOCTYPEName;
+                    break;
+                }
+
+                if (c == '>') // U+003E GREATER-THAN SIGN (>)
+                {
+                    // Reconsume in the before DOCTYPE name state.
+                    reconsume_in(State::BeforeDOCTYPEName);
+                    break;
+                }
+
+                // Anything else
+                // This is a missing-whitespace-before-doctype-name parse error.
+                // parse_error(ErrorType::MissingWhitespaceBeforeDOCTYPEName);
+
+                // Reconsume in the before DOCTYPE name state.
+                reconsume_in(State::BeforeDOCTYPEName);
+                break;
+            }
+            case State::BeforeDOCTYPEName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-doctype parse error.
+                    // parse_error(ErrorType::EOFInDOCTYPE);
+
+                    // Create a new DOCTYPE token.
+                    // Set its force-quirks flag to on.
+                    m_current_token = DOCTYPEToken {
+                        .force_quirks = true
+                    };
+
+                    // Emit the current token.
+                    emit_token(m_current_token);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Ignore the character.
+                    break;
+                }
+
+                // ASCII upper alpha
+                if (is_ascii_upper_alpha(c))
+                {
+                    // Create a new DOCTYPE token.
+                    // Set the token's name to the lowercase version of the current input character (add 0x0020 to the character's code point).
+                    m_current_token = DOCTYPEToken {
+                        .name = std::string{ static_cast<char>(std::tolower(c)) }
+                    };
 
                     // Switch to the DOCTYPE name state.
-                    state = TokenizerState::DOCTYPEName;
+                    m_state = State::DOCTYPEName;
                     break;
                 }
-                case TokenizerState::DOCTYPEName:
+
+                // U+0000 NULL
+                if (c == '\0')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-doctype parse error.
-                        // parse_error(ErrorType::EOFInDOCTYPE);
+                    // Create a new DOCTYPE token.
+                    // Set the token's name to a U+FFFD REPLACEMENT CHARACTER character.
+                    m_current_token = DOCTYPEToken {
+                        .name = "�"
+                    };
 
-                        // Set the current DOCTYPE token's force-quirks flag to on.
-                        std::get<DOCTYPEToken>(current_token).force_quirks = true;
-
-                        // Emit the current DOCTYPE token.
-                        result.emplace_back(current_token);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Switch to the after DOCTYPE name state.
-                        state = TokenizerState::AfterDOCTYPEName;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current DOCTYPE token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // ASCII upper alpha
-                    if (is_ascii_upper_alpha(c))
-                    {
-                        // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current DOCTYPE token's name.
-                        std::get<DOCTYPEToken>(current_token).name += static_cast<char>(std::tolower(c));
-                        break;
-                    }
-
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
-
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current DOCTYPE token's name.
-                        std::get<DOCTYPEToken>(current_token).name += "�";
-                        break;
-                    }
-
-                    // Anything else
-                    // Append the current input character to the current DOCTYPE token's name.
-                    std::get<DOCTYPEToken>(current_token).name += c;
+                    // Switch to the DOCTYPE name state.
+                    m_state = State::DOCTYPEName;
                     break;
                 }
-                case TokenizerState::CharacterReference:
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
                 {
-                    // Set the temporary buffer to the empty string.
-                    temporary_buffer = "";
+                    // This is a missing-doctype-name parse error.
+                    // parse_error(ErrorType::MissingDOCTYPEName);
 
-                    // Append a U+0026 AMPERSAND (&) character to the temporary buffer.
-                    temporary_buffer.append("&");
+                    // Create a new DOCTYPE token.
+                    // Set its force-quirks flag to on.
+                    m_current_token = DOCTYPEToken { .force_quirks = true };
 
-                    // Consume the next input character
-                    const auto c = *consume_next_character();
+                    // Switch to the data state.
+                    m_state = State::Data;
 
-                    if (is_ascii_alpha_numeric(c)) // ASCII alphanumeric
-                    {
-                        // Reconsume in the named character reference state.
-                        state = TokenizerState::NamedCharacterReference;
-                        --next_char;
-                        break;
-                    }
-
-                    if (c == '#') // U+0023 NUMBER SIGN (#)
-                    {
-                        // Append the current input character to the temporary buffer.
-                        temporary_buffer += c;
-
-                        // Switch to the numeric character reference state.
-                        state = TokenizerState::NumericCharacterReference;
-                        break;
-                    }
-
-                    // Anything else
-                    // Flush code points consumed as a character reference.
-                    for (auto character : temporary_buffer)
-                    {
-                        result.emplace_back(CharacterToken{ character });
-                    }
-
-                    // Reconsume in the return state.
-                    state = return_state;
-                    --next_char;
+                    // Emit the current token.
+                    emit_token(m_current_token);
                     break;
                 }
-                case TokenizerState::NamedCharacterReference:
+
+                // Anything else
+                // Create a new DOCTYPE token.
+                // Set the token's name to the current input character.
+                m_current_token = DOCTYPEToken { .name = { c } };
+
+                // Switch to the DOCTYPE name state.
+                m_state = State::DOCTYPEName;
+                break;
+            }
+            case State::DOCTYPEName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
                 {
-                    // TODO(Peter): Parse the JSON file mentioned here: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
-                    //              in the future to get a list of all valid named character references.
-                    raise(SIGTRAP);
+                    // This is an eof-in-doctype parse error.
+                    // parse_error(ErrorType::EOFInDOCTYPE);
 
-                    // Consume the maximum number of characters possible, where the consumed characters are one of the identifiers in the first column of the named character references table.
-                    while (true)
-                    {
-                        auto c = *consume_next_character();
+                    // Set the current DOCTYPE token's force-quirks flag to on.
+                    std::get<DOCTYPEToken>(m_current_token).force_quirks = true;
 
-                        if (!is_ascii_alpha(c))
-                        {
-                            // Matched as much as possible.
-                            // NOTE(Peter): Should we backtrack one?
-                            break;
-                        }
+                    // Emit the current DOCTYPE token.
+                    emit_token(m_current_token);
 
-                        // Append each character to the temporary buffer when it's consumed.
-                        temporary_buffer += c;
-                    }
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                    temporary_buffer += ";";
-
-                    // If there is a match
-                    // If the character reference was consumed as part of an attribute, and the last character matched is not a U+003B SEMICOLON character (;), and the next input character is either a U+003D EQUALS SIGN character (=) or an ASCII alphanumeric, then, for historical reasons, flush code points consumed as a character reference and switch to the return state.
-                    // Otherwise:
-                    // If the last character matched is not a U+003B SEMICOLON character (;), then this is a missing-semicolon-after-character-reference parse error.
-                    // Set the temporary buffer to the empty string. Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
-                    // Flush code points consumed as a character reference. Switch to the return state.
-                    // Otherwise
-                    // Flush code points consumed as a character reference. Switch to the ambiguous ampersand state.
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Switch to the after DOCTYPE name state.
+                    m_state = State::AfterDOCTYPEName;
                     break;
                 }
-                case TokenizerState::TagName:
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Switch to the data state.
+                    m_state = State::Data;
 
-                    if (it == source.end()) // EOF
+                    // Emit the current DOCTYPE token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // ASCII upper alpha
+                if (is_ascii_upper_alpha(c))
+                {
+                    // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current DOCTYPE token's name.
+                    std::get<DOCTYPEToken>(m_current_token).name += static_cast<char>(std::tolower(c));
+                    break;
+                }
+
+                // U+0000 NULL
+                if (c == '\0')
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the current DOCTYPE token's name.
+                    std::get<DOCTYPEToken>(m_current_token).name += "�";
+                    break;
+                }
+
+                // Anything else
+                // Append the current input character to the current DOCTYPE token's name.
+                std::get<DOCTYPEToken>(m_current_token).name += c;
+                break;
+            }
+            case State::CharacterReference:
+            {
+                // Set the temporary buffer to the empty string.
+                m_temporary_buffer = "";
+
+                // Append a U+0026 AMPERSAND (&) character to the temporary buffer.
+                m_temporary_buffer.append("&");
+
+                // Consume the next input character
+                const char c = consume_next_character();
+
+                if (is_ascii_alpha_numeric(c)) // ASCII alphanumeric
+                {
+                    // Reconsume in the named character reference state.
+                    reconsume_in(State::NamedCharacterReference);
+                    break;
+                }
+
+                if (c == '#') // U+0023 NUMBER SIGN (#)
+                {
+                    // Append the current input character to the temporary buffer.
+                    m_temporary_buffer += c;
+
+                    // Switch to the numeric character reference state.
+                    m_state = State::NumericCharacterReference;
+                    break;
+                }
+
+                // Anything else
+                // Flush code points consumed as a character reference.
+                for (auto character : m_temporary_buffer)
+                {
+                    emit_token(CharacterToken{ character });
+                }
+
+                // Reconsume in the return state.
+                reconsume_in(m_return_state);
+                break;
+            }
+            case State::NamedCharacterReference:
+            {
+                // TODO(Peter): Parse the JSON file mentioned here: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
+                //              in the future to get a list of all valid named character references.
+                raise(SIGTRAP);
+
+                // Consume the maximum number of characters possible, where the consumed characters are one of the identifiers in the first column of the named character references table.
+                while (true)
+                {
+                    const char c = consume_next_character();
+
+                    if (!is_ascii_alpha(c))
                     {
-                        // This is an eof-in-tag parse error.
-                        // parse_error(ErrorType::EOFInTag);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
+                        // Matched as much as possible.
+                        // NOTE(Peter): Should we backtrack one?
                         break;
                     }
 
-                    const auto c = *it;
+                    // Append each character to the temporary buffer when it's consumed.
+                    m_temporary_buffer += c;
+                }
 
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Switch to the before attribute name state.
-                        state = TokenizerState::BeforeAttributeName;
-                        break;
-                    }
+                m_temporary_buffer += ";";
 
-                    // U+002F SOLIDUS (/)
-                    if (c == '/')
-                    {
-                        // Switch to the self-closing start tag state.
-                        state = TokenizerState::SelfClosingStartTag;
-                        break;
-                    }
+                // If there is a match
+                // If the character reference was consumed as part of an attribute, and the last character matched is not a U+003B SEMICOLON character (;), and the next input character is either a U+003D EQUALS SIGN character (=) or an ASCII alphanumeric, then, for historical reasons, flush code points consumed as a character reference and switch to the return state.
+                // Otherwise:
+                // If the last character matched is not a U+003B SEMICOLON character (;), then this is a missing-semicolon-after-character-reference parse error.
+                // Set the temporary buffer to the empty string. Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
+                // Flush code points consumed as a character reference. Switch to the return state.
+                // Otherwise
+                // Flush code points consumed as a character reference. Switch to the ambiguous ampersand state.
+                break;
+            }
+            case State::TagName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-tag parse error.
+                    // parse_error(ErrorType::EOFInTag);
 
-                        // Emit the current tag token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                    // ASCII upper alpha
-                    if (is_ascii_upper_alpha(c))
-                    {
-                        // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current tag token's tag name.
-                        std::visit(kori::VariantOverloadSet {
-                            [&](StartTagToken& token)
-                            {
-                                token.name += static_cast<char>(std::tolower(c));
-                            },
-                            [&](EndTagToken& token)
-                            {
-                                token.name += static_cast<char>(std::tolower(c));
-                            },
-                            [](auto&&){ raise(SIGTRAP); }
-                        }, current_token);
-                        break;
-                    }
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Switch to the before attribute name state.
+                    m_state = State::BeforeAttributeName;
+                    break;
+                }
 
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
+                // U+002F SOLIDUS (/)
+                if (c == '/')
+                {
+                    // Switch to the self-closing start tag state.
+                    m_state = State::SelfClosingStartTag;
+                    break;
+                }
 
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current tag token's tag name.
-                        std::visit(kori::VariantOverloadSet {
-                            [&](StartTagToken& token)
-                            {
-                                token.name += "�";
-                            },
-                            [&](EndTagToken& token)
-                            {
-                                token.name += "�";
-                            },
-                            [](auto&&){ raise(SIGTRAP); }
-                        }, current_token);
-                        break;
-                    }
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // Switch to the data state.
+                    m_state = State::Data;
 
-                    // Anything else
-                    // Append the current input character to the current tag token's tag name.
+                    // Emit the current tag token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // ASCII upper alpha
+                if (is_ascii_upper_alpha(c))
+                {
+                    // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current tag token's tag name.
                     std::visit(kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
@@ -754,666 +693,680 @@ namespace hanami::html {
                             token.name += static_cast<char>(std::tolower(c));
                         },
                         [](auto&&){ raise(SIGTRAP); }
-                    }, current_token);
+                    }, m_current_token);
                     break;
                 }
-                case TokenizerState::SelfClosingStartTag:
+
+                // U+0000 NULL
+                if (c == '\0')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-tag parse error.
-                        // parse_error(ErrorType::EOFInTag);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Set the self-closing flag of the current tag token.
-                        std::visit(kori::VariantOverloadSet {
-                            [&](StartTagToken& token)
-                            {
-                                token.self_closing = true;
-                            },
-                            [&](EndTagToken& token)
-                            {
-                                token.self_closing = true;
-                            },
-                            [](auto&&){ raise(SIGTRAP); }
-                        }, current_token);
-
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current tag token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // Anything else
-                    // This is an unexpected-solidus-in-tag parse error.
-                    // parse_error(ErrorType::UnexpectedSolidusInTag);
-
-                    // Reconsume in the before attribute name state.
-                    --next_char;
-                    state = TokenizerState::BeforeAttributeName;
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the current tag token's tag name.
+                    std::visit(kori::VariantOverloadSet {
+                        [&](StartTagToken& token)
+                        {
+                            token.name += "�";
+                        },
+                        [&](EndTagToken& token)
+                        {
+                            token.name += "�";
+                        },
+                        [](auto&&){ raise(SIGTRAP); }
+                    }, m_current_token);
                     break;
                 }
-                case TokenizerState::BeforeAttributeName:
+
+                // Anything else
+                // Append the current input character to the current tag token's tag name.
+                std::visit(kori::VariantOverloadSet {
+                    [&](StartTagToken& token)
+                    {
+                        token.name += static_cast<char>(std::tolower(c));
+                    },
+                    [&](EndTagToken& token)
+                    {
+                        token.name += static_cast<char>(std::tolower(c));
+                    },
+                    [](auto&&){ raise(SIGTRAP); }
+                }, m_current_token);
+                break;
+            }
+            case State::SelfClosingStartTag:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is an eof-in-tag parse error.
+                    // parse_error(ErrorType::EOFInTag);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // Reconsume in the after attribute name state.
-                        --next_char;
-                        state = TokenizerState::AfterAttributeName;
-                        break;
-                    }
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                    const auto c = *it;
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // Set the self-closing flag of the current tag token.
+                    std::visit(kori::VariantOverloadSet {
+                        [&](StartTagToken& token)
+                        {
+                            token.self_closing = true;
+                        },
+                        [&](EndTagToken& token)
+                        {
+                            token.self_closing = true;
+                        },
+                        [](auto&&){ raise(SIGTRAP); }
+                    }, m_current_token);
 
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Ignore the character.
-                        break;
-                    }
+                    // Switch to the data state.
+                    m_state = State::Data;
 
-                    // U+002F SOLIDUS (/)
-                    // U+003E GREATER-THAN SIGN (>)
-                    // U+003D EQUALS SIGN (=)
-                    if (c == '/' || c == '>' || c == '=')
-                    {
-                        // This is an unexpected-equals-sign-before-attribute-name parse error.
-                        // parse_error(ErrorType::UnexpectedEqualsSignBeforeAttributeName);
+                    // Emit the current tag token.
+                    emit_token(m_current_token);
+                    break;
+                }
 
-                        // Start a new attribute in the current tag token.
-                        // Set that attribute's name to the current input character, and its value to the empty string.
-                        auto attribute = TagAttribute {
-                            .name = { c },
-                            .value =""
-                        };
+                // Anything else
+                // This is an unexpected-solidus-in-tag parse error.
+                // parse_error(ErrorType::UnexpectedSolidusInTag);
 
-                        std::visit(kori::VariantOverloadSet {
-                            [&](StartTagToken& token)
-                            {
-                                current_attribute = &token.attributes.emplace_back(std::move(attribute));
-                            },
-                            [&](EndTagToken& token)
-                            {
-                                current_attribute = &token.attributes.emplace_back(std::move(attribute));
-                            },
-                            [](auto&&){ raise(SIGTRAP); }
-                        }, current_token);
+                // Reconsume in the before attribute name state.
+                reconsume_in(State::BeforeAttributeName);
+                break;
+            }
+            case State::BeforeAttributeName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                        // Switch to the attribute name state.
-                        state = TokenizerState::AttributeName;
-                        break;
-                    }
+                // EOF
+                if (reached_eof())
+                {
+                    // Reconsume in the after attribute name state.
+                    reconsume_in(State::AfterAttributeName);
+                    break;
+                }
 
-                    // Anything else
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Ignore the character.
+                    break;
+                }
+
+                // U+002F SOLIDUS (/)
+                // U+003E GREATER-THAN SIGN (>)
+                // U+003D EQUALS SIGN (=)
+                if (c == '/' || c == '>' || c == '=')
+                {
+                    // This is an unexpected-equals-sign-before-attribute-name parse error.
+                    // parse_error(ErrorType::UnexpectedEqualsSignBeforeAttributeName);
+
                     // Start a new attribute in the current tag token.
-                    // Set that attribute name and value to the empty string.
+                    // Set that attribute's name to the current input character, and its value to the empty string.
                     auto attribute = TagAttribute {
-                        .name = "",
+                        .name = { c },
                         .value =""
                     };
 
                     std::visit(kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
-                            current_attribute = &token.attributes.emplace_back(std::move(attribute));
+                            m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
                         },
                         [&](EndTagToken& token)
                         {
-                            current_attribute = &token.attributes.emplace_back(std::move(attribute));
+                            m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
                         },
                         [](auto&&){ raise(SIGTRAP); }
-                    }, current_token);
+                    }, m_current_token);
 
-                    // Reconsume in the attribute name state.
-                    --next_char;
-                    state = TokenizerState::AttributeName;
+                    // Switch to the attribute name state.
+                    m_state = State::AttributeName;
                     break;
                 }
-                case TokenizerState::AttributeName:
+
+                // Anything else
+                // Start a new attribute in the current tag token.
+                // Set that attribute name and value to the empty string.
+                auto attribute = TagAttribute {
+                    .name = "",
+                    .value =""
+                };
+
+                std::visit(kori::VariantOverloadSet {
+                    [&](StartTagToken& token)
+                    {
+                        m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
+                    },
+                    [&](EndTagToken& token)
+                    {
+                        m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
+                    },
+                    [](auto&&){ raise(SIGTRAP); }
+                }, m_current_token);
+
+                // Reconsume in the attribute name state.
+                reconsume_in(State::AttributeName);
+                break;
+            }
+            case State::AttributeName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
-
-                    if (it == source.end()) // EOF
-                    {
-                        // Reconsume in the after attribute name state.
-                        --next_char;
-                        state = TokenizerState::AfterAttributeName;
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    // U+002F SOLIDUS (/)
-                    // U+003E GREATER-THAN SIGN (>)
-                    // U+003D EQUALS SIGN (=)
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ' || c == '/' || c == '>' || c == '=')
-                    {
-                        // Switch to the before attribute value state.
-                        state = TokenizerState::BeforeAttributeValue;
-                        break;
-                    }
-
-                    // ASCII upper alpha
-                    if (is_ascii_upper_alpha(c))
-                    {
-                        // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current attribute's name.
-                        current_attribute->name += static_cast<char>(std::tolower(c));
-                        break;
-                    }
-
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
-
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's name.
-                        current_attribute->name += "�";
-                        break;
-                    }
-
-                    // U+0022 QUOTATION MARK (")
-                    // U+0027 APOSTROPHE (')
-                    // U+003C LESS-THAN SIGN (<)
-                    if (c == '"' || c == '\'' || c == '<')
-                    {
-                        // This is an unexpected-character-in-attribute-name parse error.
-                        // parse_error(ErrorType::UnexpectedCharacterInAttributeName);
-                        // Treat it as per the "anything else" entry below.
-                    }
-
-                    // Anything else
-                    // Append the current input character to the current attribute's name.
-                    current_attribute->name += c;
+                    // Reconsume in the after attribute name state.
+                    reconsume_in(State::AfterAttributeName);
                     break;
                 }
-                case TokenizerState::BeforeAttributeValue:
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                // U+002F SOLIDUS (/)
+                // U+003E GREATER-THAN SIGN (>)
+                // U+003D EQUALS SIGN (=)
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ' || c == '/' || c == '>' || c == '=')
                 {
-                    // Consume the next input character:
-                    const auto c = *consume_next_character();
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Ignore the character.
-                        break;
-                    }
-
-                    // U+0022 QUOTATION MARK (")
-                    if (c == '"')
-                    {
-                        // Switch to the attribute value (double-quoted) state.
-                        state = TokenizerState::AttributeValueDoubleQuoted;
-                        break;
-                    }
-
-                    // U+0027 APOSTROPHE (')
-                    if (c == '\'')
-                    {
-                        // Switch to the attribute value (single-quoted) state.
-                        state = TokenizerState::AttributeValueSingleQuoted;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // This is a missing-attribute-value parse error.
-                        // parse_error(ErrorType::MissingAttributeValue);
-
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current tag token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // Anything else
-                    // Reconsume in the attribute value (unquoted) state.
-                    --next_char;
-                    state = TokenizerState::AttributeValueUnquoted;
+                    // Switch to the before attribute value state.
+                    m_state = State::BeforeAttributeValue;
                     break;
                 }
-                case TokenizerState::AttributeValueDoubleQuoted:
+
+                // ASCII upper alpha
+                if (is_ascii_upper_alpha(c))
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
-
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-tag parse error.
-                        // parse_error(ErrorType::EOFInTag);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0022 QUOTATION MARK (")
-                    if (c == '"')
-                    {
-                        // Switch to the after attribute value (quoted) state.
-                        state = TokenizerState::AfterAttributeValueQuoted;
-                        break;
-                    }
-
-                    // U+0026 AMPERSAND (&)
-                    if (c == '&')
-                    {
-                        // Set the return state to the attribute value (double-quoted) state.
-                        return_state = TokenizerState::AttributeValueDoubleQuoted;
-
-                        // Switch to the character reference state.
-                        state = TokenizerState::CharacterReference;
-                        break;
-                    }
-
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
-
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's value.
-                        current_attribute->value += "�";
-                        break;
-                    }
-
-                    // Anything else
-                    // Append the current input character to the current attribute's value.
-                    current_attribute->value += c;
+                    // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current attribute's name.
+                    m_current_attribute->name += static_cast<char>(std::tolower(c));
                     break;
                 }
-                case TokenizerState::AttributeValueUnquoted:
+
+                // U+0000 NULL
+                if (c == '\0')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-tag parse error.
-                        // parse_error(ErrorType::EOFInTag);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Switch to the before attribute name state.
-                        state = TokenizerState::BeforeAttributeName;
-                        break;
-                    }
-
-                    // U+0026 AMPERSAND (&)
-                    if (c == '&')
-                    {
-                        // Set the return state to the attribute value (unquoted) state.
-                        return_state = TokenizerState::AttributeValueUnquoted;
-
-                        // Switch to the character reference state.
-                        state = TokenizerState::CharacterReference;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current tag token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
-
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's value.
-                        current_attribute->value += "�";
-                        break;
-                    }
-
-                    // U+0022 QUOTATION MARK (")
-                    // U+0027 APOSTROPHE (')
-                    // U+003C LESS-THAN SIGN (<)
-                    // U+003D EQUALS SIGN (=)
-                    // U+0060 GRAVE ACCENT (`)
-                    if (c == '"' || c == '\'' || c == '<' || c == '=' || c == '`')
-                    {
-                        // This is an unexpected-character-in-unquoted-attribute-value parse error.
-                        // parse_error(ErrorType::UnexpectedCharacterInUnquotedAttributeValue);
-
-                        // Treat it as per the "anything else" entry below.
-                    }
-
-                    // Anything else
-                    // Append the current input character to the current attribute's value.
-                    current_attribute->value += c;
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's name.
+                    m_current_attribute->name += "�";
                     break;
                 }
-                case TokenizerState::AfterAttributeValueQuoted:
+
+                // U+0022 QUOTATION MARK (")
+                // U+0027 APOSTROPHE (')
+                // U+003C LESS-THAN SIGN (<)
+                if (c == '"' || c == '\'' || c == '<')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // This is an unexpected-character-in-attribute-name parse error.
+                    // parse_error(ErrorType::UnexpectedCharacterInAttributeName);
+                    // Treat it as per the "anything else" entry below.
+                }
 
-                    if (it == source.end()) // EOF
-                    {
-                        // This is an eof-in-tag parse error.
-                        // parse_error(ErrorType::EOFInTag);
+                // Anything else
+                // Append the current input character to the current attribute's name.
+                m_current_attribute->name += c;
+                break;
+            }
+            case State::BeforeAttributeValue:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+0009 CHARACTER TABULATION (tab)
-                    // U+000A LINE FEED (LF)
-                    // U+000C FORM FEED (FF)
-                    // U+0020 SPACE
-                    if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
-                    {
-                        // Switch to the before attribute name state.
-                        state = TokenizerState::BeforeAttributeName;
-                        break;
-                    }
-
-                    // U+002F SOLIDUS (/)
-                    if (c == '/')
-                    {
-                        // Switch to the self-closing start tag state.
-                        state = TokenizerState::SelfClosingStartTag;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current tag token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // Anything else
-                    // This is a missing-whitespace-between-attributes parse error.
-                    // parse_error(ErrorType::MissingWhitespaceBetweenAttributes);
-
-                    // Reconsume in the before attribute name state.
-                    --next_char;
-                    state = TokenizerState::BeforeAttributeName;
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Ignore the character.
                     break;
                 }
-                case TokenizerState::CommentStart:
+
+                // U+0022 QUOTATION MARK (")
+                if (c == '"')
                 {
-                    // Consume the next input character:
-                    auto c = *consume_next_character();
-
-                    // U+002D HYPHEN-MINUS (-)
-                    if (c == '-')
-                    {
-                        // Switch to the comment start dash state.
-                        state = TokenizerState::CommentStartDash;
-                        break;
-                    }
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // This is an abrupt-closing-of-empty-comment parse error.
-                        // parse_error(ErrorType::AbruptClosingOfEmptyComment);
-
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current comment token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // Anything else
-                    // Reconsume in the comment state.
-                    --next_char;
-                    state = TokenizerState::Comment;
+                    // Switch to the attribute value (double-quoted) state.
+                    m_state = State::AttributeValueDoubleQuoted;
                     break;
                 }
-                case TokenizerState::Comment:
+
+                // U+0027 APOSTROPHE (')
+                if (c == '\'')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Switch to the attribute value (single-quoted) state.
+                    m_state = State::AttributeValueSingleQuoted;
+                    break;
+                }
 
-                    // EOF
-                    if (it == source.end())
-                    {
-                        // This is an eof-in-comment parse error.
-                        // parse_error(ErrorType::EOFInComment);
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // This is a missing-attribute-value parse error.
+                    // parse_error(ErrorType::MissingAttributeValue);
 
-                        // Emit the current comment token.
-                        result.emplace_back(current_token);
+                    // Switch to the data state.
+                    m_state = State::Data;
 
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
+                    // Emit the current tag token.
+                    emit_token(m_current_token);
+                    break;
+                }
 
-                    const auto c = *it;
+                // Anything else
+                // Reconsume in the attribute value (unquoted) state.
+                reconsume_in(State::AttributeValueUnquoted);
+                break;
+            }
+            case State::AttributeValueDoubleQuoted:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                    // U+003C LESS-THAN SIGN (<)
-                    if (c == '<')
-                    {
-                        // Append the current input character to the comment token's data.
-                        std::get<CommentToken>(current_token).data += c;
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-tag parse error.
+                    // parse_error(ErrorType::EOFInTag);
 
-                        // Switch to the comment less-than sign state.
-                        state = TokenizerState::CommentLessThanSign;
-                        break;
-                    }
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
 
-                    // U+002D HYPHEN-MINUS (-)
-                    if (c == '-')
-                    {
-                        // Switch to the comment end dash state.
-                        state = TokenizerState::CommentEndDash;
-                        break;
-                    }
+                // U+0022 QUOTATION MARK (")
+                if (c == '"')
+                {
+                    // Switch to the after attribute value (quoted) state.
+                    m_state = State::AfterAttributeValueQuoted;
+                    break;
+                }
 
-                    // U+0000 NULL
-                    if (c == '\0')
-                    {
-                        // This is an unexpected-null-character parse error.
-                        // parse_error(ErrorType::UnexpectedNullCharacter);
+                // U+0026 AMPERSAND (&)
+                if (c == '&')
+                {
+                    // Set the return state to the attribute value (double-quoted) state.
+                    m_return_state = State::AttributeValueDoubleQuoted;
 
-                        // Append a U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
-                        std::get<CommentToken>(current_token).data += "�";
-                        break;
-                    }
+                    // Switch to the character reference state.
+                    m_state = State::CharacterReference;
+                    break;
+                }
 
-                    // Anything else
+                // U+0000 NULL
+                if (c == '\0')
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's value.
+                    m_current_attribute->value += "�";
+                    break;
+                }
+
+                // Anything else
+                // Append the current input character to the current attribute's value.
+                m_current_attribute->value += c;
+                break;
+            }
+            case State::AttributeValueUnquoted:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-tag parse error.
+                    // parse_error(ErrorType::EOFInTag);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Switch to the before attribute name state.
+                    m_state = State::BeforeAttributeName;
+                    break;
+                }
+
+                // U+0026 AMPERSAND (&)
+                if (c == '&')
+                {
+                    // Set the return state to the attribute value (unquoted) state.
+                    m_return_state = State::AttributeValueUnquoted;
+
+                    // Switch to the character reference state.
+                    m_state = State::CharacterReference;
+                    break;
+                }
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // Switch to the data state.
+                    m_state = State::Data;
+
+                    // Emit the current tag token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // U+0000 NULL
+                if (c == '\0')
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the current attribute's value.
+                    m_current_attribute->value += "�";
+                    break;
+                }
+
+                // U+0022 QUOTATION MARK (")
+                // U+0027 APOSTROPHE (')
+                // U+003C LESS-THAN SIGN (<)
+                // U+003D EQUALS SIGN (=)
+                // U+0060 GRAVE ACCENT (`)
+                if (c == '"' || c == '\'' || c == '<' || c == '=' || c == '`')
+                {
+                    // This is an unexpected-character-in-unquoted-attribute-value parse error.
+                    // parse_error(ErrorType::UnexpectedCharacterInUnquotedAttributeValue);
+
+                    // Treat it as per the "anything else" entry below.
+                }
+
+                // Anything else
+                // Append the current input character to the current attribute's value.
+                m_current_attribute->value += c;
+                break;
+            }
+            case State::AfterAttributeValueQuoted:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-tag parse error.
+                    // parse_error(ErrorType::EOFInTag);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // Switch to the before attribute name state.
+                    m_state = State::BeforeAttributeName;
+                    break;
+                }
+
+                // U+002F SOLIDUS (/)
+                if (c == '/')
+                {
+                    // Switch to the self-closing start tag state.
+                    m_state = State::SelfClosingStartTag;
+                    break;
+                }
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // Switch to the data state.
+                    m_state = State::Data;
+
+                    // Emit the current tag token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // Anything else
+                // This is a missing-whitespace-between-attributes parse error.
+                // parse_error(ErrorType::MissingWhitespaceBetweenAttributes);
+
+                // Reconsume in the before attribute name state.
+                reconsume_in(State::BeforeAttributeName);
+                break;
+            }
+            case State::CommentStart:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // U+002D HYPHEN-MINUS (-)
+                if (c == '-')
+                {
+                    // Switch to the comment start dash state.
+                    m_state = State::CommentStartDash;
+                    break;
+                }
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // This is an abrupt-closing-of-empty-comment parse error.
+                    // parse_error(ErrorType::AbruptClosingOfEmptyComment);
+
+                    // Switch to the data state.
+                    m_state = State::Data;
+
+                    // Emit the current comment token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // Anything else
+                // Reconsume in the comment state.
+                reconsume_in(State::Comment);
+                break;
+            }
+            case State::Comment:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-comment parse error.
+                    // parse_error(ErrorType::EOFInComment);
+
+                    // Emit the current comment token.
+                    emit_token(m_current_token);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+003C LESS-THAN SIGN (<)
+                if (c == '<')
+                {
                     // Append the current input character to the comment token's data.
-                    std::get<CommentToken>(current_token).data += c;
+                    std::get<CommentToken>(m_current_token).data += c;
+
+                    // Switch to the comment less-than sign state.
+                    m_state = State::CommentLessThanSign;
                     break;
                 }
-                case TokenizerState::CommentEndDash:
+
+                // U+002D HYPHEN-MINUS (-)
+                if (c == '-')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Switch to the comment end dash state.
+                    m_state = State::CommentEndDash;
+                    break;
+                }
 
-                    // EOF
-                    if (it == source.end())
-                    {
-                        // This is an eof-in-comment parse error.
-                        // parse_error(ErrorType::EOFInComment);
+                // U+0000 NULL
+                if (c == '\0')
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
 
-                        // Emit the current comment token.
-                        result.emplace_back(current_token);
+                    // Append a U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
+                    std::get<CommentToken>(m_current_token).data += "�";
+                    break;
+                }
 
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
+                // Anything else
+                // Append the current input character to the comment token's data.
+                std::get<CommentToken>(m_current_token).data += c;
+                break;
+            }
+            case State::CommentEndDash:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
 
-                    const auto c = *it;
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-comment parse error.
+                    // parse_error(ErrorType::EOFInComment);
 
-                    // U+002D HYPHEN-MINUS (-)
-                    if (c == '-')
-                    {
-                        // Switch to the comment end state.
-                        state = TokenizerState::CommentEnd;
-                        break;
-                    }
+                    // Emit the current comment token.
+                    emit_token(m_current_token);
 
-                    // Anything else
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+
+                // U+002D HYPHEN-MINUS (-)
+                if (c == '-')
+                {
+                    // Switch to the comment end state.
+                    m_state = State::CommentEnd;
+                    break;
+                }
+
+                // Anything else
+                // Append a U+002D HYPHEN-MINUS character (-) to the comment token's data.
+                std::get<CommentToken>(m_current_token).data += '-';
+
+                // Reconsume in the comment state.
+                reconsume_in(State::Comment);
+                break;
+            }
+            case State::CommentEnd:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // This is an eof-in-comment parse error.
+                    // parse_error(ErrorType::EOFInComment);
+
+                    // Emit the current comment token.
+                    emit_token(m_current_token);
+
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    return ProcessResult::Abort;
+                }
+                
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // Switch to the data state.
+                    m_state = State::Data;
+
+                    // Emit the current comment token.
+                    emit_token(m_current_token);
+                    break;
+                }
+
+                // U+0021 EXCLAMATION MARK (!)
+                if (c == '!')
+                {
+                    // Switch to the comment end bang state.
+                    m_state = State::CommentEndBang;
+                    break;
+                }
+
+                // U+002D HYPHEN-MINUS (-)
+                if (c == '-')
+                {
                     // Append a U+002D HYPHEN-MINUS character (-) to the comment token's data.
-                    std::get<CommentToken>(current_token).data += '-';
-
-                    // Reconsume in the comment state.
-                    --next_char;
-                    state = TokenizerState::Comment;
+                    std::get<CommentToken>(m_current_token).data += '-';
                     break;
                 }
-                case TokenizerState::CommentEnd:
+
+                // Anything else
+                // Append two U+002D HYPHEN-MINUS characters (-) to the comment token's data.
+                std::get<CommentToken>(m_current_token).data += "--";
+
+                // Reconsume in the comment state.
+                reconsume_in(State::Comment);
+                break;
+            }
+            case State::CommentLessThanSign:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // U+0021 EXCLAMATION MARK (!)
+                if (c == '!')
                 {
-                    // Consume the next input character:
-                    auto it = consume_next_character();
+                    // Append the current input character to the comment token's data.
+                    std::get<CommentToken>(m_current_token).data += c;
 
-                    // EOF
-                    if (it == source.end())
-                    {
-                        // This is an eof-in-comment parse error.
-                        // parse_error(ErrorType::EOFInComment);
-
-                        // Emit the current comment token.
-                        result.emplace_back(current_token);
-
-                        // Emit an end-of-file token.
-                        emit_eof();
-                        break;
-                    }
-
-                    const auto c = *it;
-
-                    // U+003E GREATER-THAN SIGN (>)
-                    if (c == '>')
-                    {
-                        // Switch to the data state.
-                        state = TokenizerState::Data;
-
-                        // Emit the current comment token.
-                        result.emplace_back(current_token);
-                        break;
-                    }
-
-                    // U+0021 EXCLAMATION MARK (!)
-                    if (c == '!')
-                    {
-                        // Switch to the comment end bang state.
-                        state = TokenizerState::CommentEndBang;
-                        break;
-                    }
-
-                    // U+002D HYPHEN-MINUS (-)
-                    if (c == '-')
-                    {
-                        // Append a U+002D HYPHEN-MINUS character (-) to the comment token's data.
-                        std::get<CommentToken>(current_token).data += '-';
-                        break;
-                    }
-
-                    // Anything else
-                    // Append two U+002D HYPHEN-MINUS characters (-) to the comment token's data.
-                    std::get<CommentToken>(current_token).data += "--";
-
-                    // Reconsume in the comment state.
-                    --next_char;
-                    state = TokenizerState::Comment;
+                    // Switch to the comment less-than sign bang state.
+                    m_state = State::CommentLessThanSignBang;
                     break;
                 }
-                case TokenizerState::CommentLessThanSign:
+
+                // U+003C LESS-THAN SIGN (<)
+                if (c == '<')
                 {
-                    // Consume the next input character:
-                    const auto c = *consume_next_character();
-
-                    // U+0021 EXCLAMATION MARK (!)
-                    if (c == '!')
-                    {
-                        // Append the current input character to the comment token's data.
-                        std::get<CommentToken>(current_token).data += c;
-
-                        // Switch to the comment less-than sign bang state.
-                        state = TokenizerState::CommentLessThanSignBang;
-                        break;
-                    }
-
-                    // U+003C LESS-THAN SIGN (<)
-                    if (c == '<')
-                    {
-                        // Append the current input character to the comment token's data.
-                        std::get<CommentToken>(current_token).data += c;
-                        break;
-                    }
-
-                    // Anything else
-                    // Reconsume in the comment state.
-                    --next_char;
-                    state = TokenizerState::Comment;
+                    // Append the current input character to the comment token's data.
+                    std::get<CommentToken>(m_current_token).data += c;
                     break;
                 }
-                default:
-                {
-                    raise(SIGTRAP);
-                    //MWL_VERIFY(false, "Unimplemented state");
-                    break;
-                }
+
+                // Anything else
+                // Reconsume in the comment state.
+                reconsume_in(State::Comment);
+                break;
+            }
+            default:
+            {
+                raise(SIGTRAP);
+                //MWL_VERIFY(false, "Unimplemented state");
+                break;
             }
         }
 
-        return result;
+        return ProcessResult::Continue;
     }
 
 }

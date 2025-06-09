@@ -13,7 +13,8 @@ target_sources(hanami
 
         # HTML
         html/tokenizer.cpp
-        html/tree_builder.cpp)
+        html/tree_builder.cpp
+        html/parser.cpp)
 
 target_link_libraries(hanami
         PRIVATE

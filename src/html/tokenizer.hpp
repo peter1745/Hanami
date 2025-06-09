@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string_view>
 
@@ -73,10 +74,79 @@ namespace hanami::html {
         return std::holds_alternative<T>(token);
     }
 
-    struct Tokenizer
+    class Tokenizer
     {
-        // https://html.spec.whatwg.org/multipage/parsing.html#tokenization
-        auto tokenize(std::string_view input) -> std::vector<Token>;
+    public:
+        using EmitTokenFunc = std::function<void(const Token&)>;
+        void start(std::string_view input, EmitTokenFunc func);
+
+    public:
+        enum class State
+        {
+            Invalid = -1,
+
+            Data,
+            CharacterReference,
+            TagOpen,
+            NamedCharacterReference,
+            NumericCharacterReference,
+            MarkupDeclarationOpen,
+            EndTagOpen,
+            TagName,
+            BogusComment,
+            CommentStart,
+            DOCTYPE,
+            BeforeDOCTYPEName,
+            DOCTYPEName,
+            AfterDOCTYPEName,
+            BeforeAttributeName,
+            SelfClosingStartTag,
+            AfterAttributeName,
+            AttributeName,
+            BeforeAttributeValue,
+            AttributeValueDoubleQuoted,
+            AttributeValueSingleQuoted,
+            AttributeValueUnquoted,
+            AfterAttributeValueQuoted,
+            CommentStartDash,
+            Comment,
+            CommentLessThanSign,
+            CommentEndDash,
+            CommentEnd,
+            CommentEndBang,
+            CommentLessThanSignBang,
+        };
+
+    private:
+        void emit_token(const Token& token) const;
+
+        auto consume_multiple_chars(size_t count) noexcept -> std::string_view;
+        auto consume_next_character() noexcept -> char;
+        void reconsume_in(State state) noexcept;
+
+        [[nodiscard]]
+        auto reached_eof() const noexcept -> bool;
+
+        [[nodiscard]]
+        auto next_characters_equals(std::string_view chars, bool case_insensitive = false) const noexcept -> bool;
+
+        enum class ProcessResult { Continue, Abort };
+        auto process_next_token() -> ProcessResult;
+
+    private:
+        EmitTokenFunc m_emit_token;
+        std::string_view m_input_stream;
+
+        State m_state = State::Invalid;
+        State m_return_state = State::Invalid;
+
+        Token m_current_token{};
+
+        size_t m_current_char_idx = 0;
+
+        std::string m_temporary_buffer;
+
+        TagAttribute* m_current_attribute = nullptr;
     };
 
 }

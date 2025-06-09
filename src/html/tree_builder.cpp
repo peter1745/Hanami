@@ -5,8 +5,8 @@
 
 #include "kori/core.hpp"
 
-//#define TODO() raise(SIGTRAP)
-#define TODO()
+#define TODO(...) raise(SIGTRAP)
+//#define TODO(...)
 
 namespace hanami::html {
 
@@ -64,11 +64,6 @@ namespace hanami::html {
     TreeBuilder::TreeBuilder() noexcept
     {
         m_document = std::make_unique<Document>();
-    }
-
-    void TreeBuilder::process_token(const Token&)
-    {
-
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
@@ -431,9 +426,8 @@ namespace hanami::html {
                             // whose tag name is "title"
                             if (t->name == "title")
                             {
-                                // TODO(Peter):
                                 // Follow the generic RCDATA element parsing algorithm.
-                                TODO();
+                                TODO("This requires implementing proper tokenizer - tree builder intero. E.g emitted tokens immediately get processed by the tree construction. Do this next.");
                                 break;
                             }
 
