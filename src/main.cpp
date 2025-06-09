@@ -1,10 +1,57 @@
 #include "html/tokenizer.hpp"
+#include "html/tree_builder.hpp"
 
 #include <print>
 #include <fstream>
+#include <memory>
 #include <sstream>
+#include <string_view>
 #include <mwl/mwl.hpp>
 #include <kori/core.hpp>
+
+using namespace hanami;
+
+void print_tokens(std::span<const html::Token> tokens)
+{
+    for (const auto& token : tokens)
+    {
+        std::visit(kori::VariantOverloadSet {
+            [](const html::DOCTYPEToken& token)
+            {
+                std::println("DOCTYPE(name = {}, force_quirks = {})", token.name, token.force_quirks);
+            },
+            [](const html::StartTagToken& token)
+            {
+                std::println("StartTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
+                for (const auto& attr : token.attributes)
+                {
+                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
+                }
+            },
+            [](const html::EndTagToken& token)
+            {
+                std::println("EndTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
+                for (const auto& attr : token.attributes)
+                {
+                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
+                }
+            },
+            [](const html::CommentToken& token)
+            {
+                std::println("CommentToken(data = {})", token.data);
+            },
+            [](const html::CharacterToken& token)
+            {
+                // Don't print newline or space tokens
+                std::println("CharacterToken(data = {})", token.data);
+            },
+            [](const html::EOFToken&)
+            {
+                std::println("EOFToken");
+            }
+        }, token);
+    }
+}
 
 int main()
 {
@@ -16,7 +63,6 @@ int main()
     auto win = mwl::Window::create(mwl_state, "Hanami", 1920, 1080);
     kori_defer { win.destroy(); };
     win.set_close_callback([&] { running = false; });
-
 
     // HTML Tokenize
     std::stringstream ss;
@@ -32,52 +78,13 @@ int main()
         ss << stream.rdbuf();
     }
 
-    auto tokenizer = hanami::html::Tokenizer{};
+    auto tree_builder = html::TreeBuilder{};
+    auto tokenizer = html::Tokenizer{};
     auto tokens = tokenizer.tokenize(ss.str());
 
-    for (const auto& token : tokens)
-    {
-        std::visit(kori::VariantOverloadSet {
-            [](const hanami::html::DOCTYPEToken& token)
-            {
-                std::println("DOCTYPE(name = {}, force_quirks = {})", token.name, token.force_quirks);
-            },
-            [](const hanami::html::StartTagToken& token)
-            {
-                std::println("StartTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
-                for (const auto& attr : token.attributes)
-                {
-                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
-                }
-            },
-            [](const hanami::html::EndTagToken& token)
-            {
-                std::println("EndTagToken(name = {}, self_closing = {})", token.name, token.self_closing);
-                for (const auto& attr : token.attributes)
-                {
-                    std::println("\tAttribute(name = {}, value = {})", attr.name, attr.value);
-                }
-            },
-            [](const hanami::html::CommentToken& token)
-            {
-                std::println("CommentToken(data = {})", token.data);
-            },
-            [](const hanami::html::CharacterToken& token)
-            {
-                // Don't print newline or space tokens
-                if (token.data == '\n' || token.data == ' ')
-                {
-                    return;
-                }
+    print_tokens(tokens);
 
-                std::println("CharacterToken(data = {})", token.data);
-            },
-            [](const hanami::html::EOFToken&)
-            {
-                std::println("EOFToken");
-            }
-        }, token);
-    }
+    tree_builder.process_all_tokens(tokens);
 
     while (running)
     {

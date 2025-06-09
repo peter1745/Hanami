@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace hanami::html {
@@ -12,6 +13,8 @@ namespace hanami::html {
     struct DOCTYPEToken
     {
         std::string name{};
+        std::optional<std::string> public_identifier{ std::nullopt };
+        std::optional<std::string> system_identifier{ std::nullopt };
         bool force_quirks{};
     };
 
@@ -29,6 +32,19 @@ namespace hanami::html {
     };
     struct StartTagToken : TagToken {};
     struct EndTagToken : TagToken {};
+
+    inline auto get_token_attribute_value(const TagToken* token, std::string_view name) -> std::optional<std::string_view>
+    {
+        for (const auto& attrib : token->attributes)
+        {
+            if (attrib.name == name)
+            {
+                return attrib.value;
+            }
+        }
+
+        return std::nullopt;
+    }
 
     struct CommentToken
     {
@@ -50,6 +66,12 @@ namespace hanami::html {
         CharacterToken,
         EOFToken
     >;
+
+    template<typename T>
+    auto token_is(const Token& token) noexcept -> bool
+    {
+        return std::holds_alternative<T>(token);
+    }
 
     struct Tokenizer
     {

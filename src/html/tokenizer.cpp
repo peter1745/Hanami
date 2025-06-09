@@ -622,6 +622,40 @@ namespace hanami::html {
                     --next_char;
                     break;
                 }
+                case TokenizerState::NamedCharacterReference:
+                {
+                    // TODO(Peter): Parse the JSON file mentioned here: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
+                    //              in the future to get a list of all valid named character references.
+                    raise(SIGTRAP);
+
+                    // Consume the maximum number of characters possible, where the consumed characters are one of the identifiers in the first column of the named character references table.
+                    while (true)
+                    {
+                        auto c = *consume_next_character();
+
+                        if (!is_ascii_alpha(c))
+                        {
+                            // Matched as much as possible.
+                            // NOTE(Peter): Should we backtrack one?
+                            break;
+                        }
+
+                        // Append each character to the temporary buffer when it's consumed.
+                        temporary_buffer += c;
+                    }
+
+                    temporary_buffer += ";";
+
+                    // If there is a match
+                    // If the character reference was consumed as part of an attribute, and the last character matched is not a U+003B SEMICOLON character (;), and the next input character is either a U+003D EQUALS SIGN character (=) or an ASCII alphanumeric, then, for historical reasons, flush code points consumed as a character reference and switch to the return state.
+                    // Otherwise:
+                    // If the last character matched is not a U+003B SEMICOLON character (;), then this is a missing-semicolon-after-character-reference parse error.
+                    // Set the temporary buffer to the empty string. Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
+                    // Flush code points consumed as a character reference. Switch to the return state.
+                    // Otherwise
+                    // Flush code points consumed as a character reference. Switch to the ambiguous ampersand state.
+                    break;
+                }
                 case TokenizerState::TagName:
                 {
                     // Consume the next input character:
