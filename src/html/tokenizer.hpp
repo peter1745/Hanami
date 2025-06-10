@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <span>
 #include <string>
 #include <vector>
@@ -8,6 +9,8 @@
 #include <functional>
 #include <optional>
 #include <string_view>
+
+#include "kori/core.hpp"
 
 namespace hanami::html {
 
@@ -72,6 +75,61 @@ namespace hanami::html {
     auto token_is(const Token& token) noexcept -> bool
     {
         return std::holds_alternative<T>(token);
+    }
+
+    inline auto token_is_character(const Token& token, char c) -> bool
+    {
+        const auto* char_token = std::get_if<CharacterToken>(&token);
+        return char_token && char_token->data == c;
+    }
+
+    inline auto token_is_start_tag(const Token& token, std::string_view tag) -> bool
+    {
+        const auto* tag_token = std::get_if<StartTagToken>(&token);
+        return tag_token && tag_token->name == tag;
+    }
+
+    inline auto token_is_start_tag_any_of(const Token& token, std::span<const std::string_view> names) -> bool
+    {
+        if (!std::holds_alternative<StartTagToken>(token))
+        {
+            return false;
+        }
+
+        return std::ranges::any_of(names, [&](const std::string_view name)
+        {
+            return std::get<StartTagToken>(token).name == name;
+        });
+    }
+
+    inline auto token_is_end_tag(const Token& token, std::string_view tag) -> bool
+    {
+        const auto* tag_token = std::get_if<EndTagToken>(&token);
+        return tag_token && tag_token->name == tag;
+    }
+
+    inline auto token_is_end_tag_any_of(const Token& token, std::span<const std::string_view> names) -> bool
+    {
+        if (!std::holds_alternative<EndTagToken>(token))
+        {
+            return false;
+        }
+
+        return std::ranges::any_of(names, [&](const std::string_view name)
+        {
+            return std::get<EndTagToken>(token).name == name;
+        });
+    }
+
+    inline auto token_tag_name(const Token& token) -> std::string_view
+    {
+        auto name = std::string_view{};
+        std::visit(kori::VariantOverloadSet {
+            [&](const StartTagToken& start_tag) { name = start_tag.name; },
+            [&](const EndTagToken& end_tag) { name = end_tag.name; },
+            [](auto&&) {}
+        }, token);
+        return name;
     }
 
     class Tokenizer

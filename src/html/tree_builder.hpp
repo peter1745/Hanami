@@ -38,6 +38,27 @@ namespace hanami::html {
         Notation = 12, // legacy
     };
 
+    inline auto node_type_str(NodeType type) -> std::string_view
+    {
+        switch (type)
+        {
+            case NodeType::Invalid: return "Invalid";
+            case NodeType::Element: return "Element";
+            case NodeType::Attribute: return "Attribute";
+            case NodeType::Text: return "Text";
+            case NodeType::CDATASection: return "CDATASection";
+            case NodeType::EntityReference: return "EntityReference";
+            case NodeType::Entity: return "Entity";
+            case NodeType::ProcessingInstruction: return "ProcessingInstruction";
+            case NodeType::Comment: return "Comment";
+            case NodeType::Document: return "Document";
+            case NodeType::DocumentType: return "DocumentType";
+            case NodeType::DocumentFragment: return "DocumentFragment";
+            case NodeType::Notation: return "Notation";
+            default: return "Unknown";
+        }
+    }
+
     class Node;
     using NodeList = std::vector<Node*>;
 
@@ -45,6 +66,18 @@ namespace hanami::html {
     {
         NodeList* list;
         NodeList::iterator iter;
+
+        auto operator--(int) const -> NodeListLocation
+        {
+            auto copy = *this;
+
+            if (copy.iter != copy.list->begin())
+            {
+                --copy.iter;
+            }
+
+            return copy;
+        }
 
         auto operator*() const -> Node*
         {
@@ -261,11 +294,22 @@ namespace hanami::html {
 
         // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
         void process_token(const Token& token);
-        void process_all_tokens(std::span<const Token> tokens);
+        void print_dom();
+
+        auto document() const noexcept -> Document*
+        {
+            return m_document.get();
+        }
 
     private:
+
+        // TODO(Peter): Doesn't belong here.
+        void stop_parsing();
+
         auto current_node() const noexcept -> Element*;
         auto adjusted_current_node() const noexcept -> Element*;
+
+        auto current_node_is_any_of(std::span<const std::string_view> tags) const noexcept -> bool;
 
         auto appropriate_insertion_place(std::optional<Node*> override_target = { std::nullopt }) const noexcept -> NodeListLocation;
 
@@ -304,6 +348,9 @@ namespace hanami::html {
         TreeInsertionMode m_insertion_mode = TreeInsertionMode::Initial;
         std::vector<Element*> m_open_elements{};
         std::unique_ptr<Document> m_document{};
+
+        enum class FramesetOK { Ok, NotOk };
+        FramesetOK m_frameset_ok = FramesetOK::Ok;
     };
 
 }

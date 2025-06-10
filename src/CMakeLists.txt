@@ -16,6 +16,10 @@ target_sources(hanami
         html/tree_builder.cpp
         html/parser.cpp)
 
+target_include_directories(hanami
+    PRIVATE
+        ../src/)
+
 target_link_libraries(hanami
         PRIVATE
             mwl

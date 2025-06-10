@@ -1,4 +1,5 @@
 #include "tokenizer.hpp"
+#include "core/core.hpp"
 
 #include <kori/core.hpp>
 
@@ -32,24 +33,6 @@ namespace hanami::html {
     static auto is_ascii_alpha_numeric(char c) -> bool
     {
         return (c >= '0' && c <= '9') || is_ascii_alpha(c);
-    }
-
-    static auto equals_case_insensitive(std::string_view a, std::string_view b) -> bool
-    {
-        if (a.length() != b.length())
-        {
-            return false;
-        }
-
-        for (size_t i = 0; i < a.length(); ++i)
-        {
-            if (std::tolower(a[i]) != std::tolower(b[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     void Tokenizer::print_token(const Token& t)

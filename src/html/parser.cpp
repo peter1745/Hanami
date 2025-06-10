@@ -21,6 +21,11 @@ namespace hanami::html {
         });
     }
 
+    auto Parser::document() const -> Document*
+    {
+        return m_tree_builder.document();
+    }
+
     // https://infra.spec.whatwg.org/#normalize-newlines
     auto Parser::normalize_input_stream(std::string_view in) noexcept -> std::string
     {

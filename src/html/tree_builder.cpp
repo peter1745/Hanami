@@ -1,7 +1,9 @@
 #include "tree_builder.hpp"
+#include "core/core.hpp"
 
 #include <csignal>
 #include <print>
+#include <linux/input-event-codes.h>
 
 #include "kori/core.hpp"
 
@@ -594,6 +596,802 @@ namespace hanami::html {
 
                         break;
                     }
+                    case TreeInsertionMode::AfterHead:
+                    {
+                        // A character token that is one of U+0009 CHARACTER TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN (CR), or U+0020 SPACE
+                        if (
+                            token_is_character(token, '\t') ||
+                            token_is_character(token, '\n') ||
+                            token_is_character(token, '\f') ||
+                            token_is_character(token, '\r') ||
+                            token_is_character(token, ' '))
+                        {
+                            // Insert the character.
+                            insert_character({ &std::get<CharacterToken>(token).data, 1 });
+                            break;
+                        }
+
+                        // A comment token
+                        if (token_is<CommentToken>(token))
+                        {
+                            // Insert a comment.
+                            insert_comment(std::get<CommentToken>(token).data);
+                            break;
+                        }
+
+                        // A DOCTYPE token
+                        if (token_is<DOCTYPEToken>(token))
+                        {
+                            // Parse error. Ignore the token.
+                            break;
+                        }
+
+                        // A start tag
+                        if (const auto* start_tag = std::get_if<StartTagToken>(&token); start_tag)
+                        {
+                            // whose tag name is "html"
+                            if (start_tag->name == "html")
+                            {
+                                // Process the token using the rules for the "in body" insertion mode.
+                                TODO();
+                                break;
+                            }
+
+                            // whose tag name is "body"
+                            if (start_tag->name == "body")
+                            {
+                                // Insert an HTML element for the token.
+                                insert_html_element(token);
+
+                                // Set the frameset-ok flag to "not ok".
+                                m_frameset_ok = FramesetOK::NotOk;
+
+                                // Switch the insertion mode to "in body".
+                                m_insertion_mode = TreeInsertionMode::InBody;
+                                break;
+                            }
+
+                            // whose tag name is "frameset"
+                            if (start_tag->name == "frameset")
+                            {
+                                // Insert an HTML element for the token.
+                                // Switch the insertion mode to "in frameset".
+                                TODO();
+                                break;
+                            }
+
+                            // whose tag name is one of: "base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"
+                            if (
+                                start_tag->name == "base" || start_tag->name == "basefont" ||
+                                start_tag->name == "bgsound" || start_tag->name == "link" ||
+                                start_tag->name == "meta" || start_tag->name == "noframes" ||
+                                start_tag->name == "script" || start_tag->name == "style" ||
+                                start_tag->name == "template" || start_tag->name == "title"
+                            )
+                            {
+                                // Parse error.
+                                // Push the node pointed to by the head element pointer onto the stack of open elements.
+                                // Process the token using the rules for the "in head" insertion mode.
+                                // Remove the node pointed to by the head element pointer from the stack of open elements. (It might not be the current node at this point.)
+                                // The head element pointer cannot be null at this point.
+                                TODO();
+                                break;
+                            }
+                        }
+
+                        // An end tag
+                        if (const auto* end_tag = std::get_if<EndTagToken>(&token); end_tag)
+                        {
+                            // whose tag name is "template"
+                            // Process the token using the rules for the "in head" insertion mode.
+                            // An end tag whose tag name is one of: "body", "html", "br"
+                            // Act as described in the "anything else" entry below.
+                            TODO();
+                        }
+
+                        // A start tag whose tag name is "head"
+                        // Any other end tag
+                        if (token_is_start_tag(token, "head") || std::get_if<EndTagToken>(&token))
+                        {
+                            // Parse error. Ignore the token.
+                            break;
+                        }
+
+                        // Anything else
+                        //     Insert an HTML element for a "body" start tag token with no attributes.
+                        //     Switch the insertion mode to "in body".
+                        //     Reprocess the current token.
+                        TODO();
+                        break;
+                    }
+                    case TreeInsertionMode::InBody:
+                    {
+                        // A character token that is U+0000 NULL
+                        if (token_is_character(token, '\0'))
+                        {
+                            // Parse error. Ignore the token.
+                            break;
+                        }
+
+                        // A character token that is one of U+0009 CHARACTER TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN (CR), or U+0020 SPACE
+                        if (
+                            token_is_character(token, '\t') ||
+                            token_is_character(token, '\n') ||
+                            token_is_character(token, '\f') ||
+                            token_is_character(token, '\r') ||
+                            token_is_character(token, ' '))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert the token's character.
+                            insert_character({ &std::get<CharacterToken>(token).data, 1 });
+                            break;
+                        }
+
+                        // Any other character token
+                        if (const auto* c = std::get_if<CharacterToken>(&token); c)
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert the token's character.
+                            insert_character({ &c->data, 1 });
+
+                            // Set the frameset-ok flag to "not ok".
+                            m_frameset_ok = FramesetOK::NotOk;
+                            break;
+                        }
+
+                        // A comment token
+                        if (token_is<CharacterToken>(token))
+                        {
+                            // Insert a comment.
+                            TODO();
+                            break;
+                        }
+
+                        // A DOCTYPE token
+                        if (token_is<DOCTYPEToken>(token))
+                        {
+                            // Parse error. Ignore the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "html"
+                        if (token_is_start_tag(token, "html"))
+                        {
+                            // Parse error.
+                            // If there is a template element on the stack of open elements, then ignore the token.
+                            // Otherwise, for each attribute on the token, check to see if the attribute is already present on the top element of the stack of open elements. If it is not, add the attribute and its corresponding value to that element.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title"
+                        // An end tag whose tag name is "template"
+                        if (
+                            token_is_start_tag_any_of(token, { "base", "basefont", "bgsound", "link", "meta", "noframes", "script", "style", "template", "title" }) ||
+                            token_is_end_tag(token, "template")
+                        )
+                        {
+                            // Process the token using the rules for the "in head" insertion mode.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "body"
+                        if (token_is_start_tag(token, "body"))
+                        {
+                            // Parse error.
+                            // If the stack of open elements has only one node on it, if the second element on the stack of open elements is not a body element, or if there is a template element on the stack of open elements, then ignore the token. (fragment case or there is a template element on the stack)
+                            // Otherwise, set the frameset-ok flag to "not ok"; then, for each attribute on the token, check to see if the attribute is already present on the body element (the second element) on the stack of open elements, and if it is not, add the attribute and its corresponding value to that element.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "frameset"
+                        if (token_is_start_tag(token, "frameset"))
+                        {
+                            // Parse error.
+                            // If the stack of open elements has only one node on it, or if the second element on the stack of open elements is not a body element, then ignore the token. (fragment case or there is a template element on the stack)
+                            // If the frameset-ok flag is set to "not ok", ignore the token.
+                            // Otherwise, run the following steps:
+                            // Remove the second element on the stack of open elements from its parent node, if it has one.
+                            // Pop all the nodes from the bottom of the stack of open elements, from the current node up to, but not including, the root html element.
+                            // Insert an HTML element for the token.
+                            // Switch the insertion mode to "in frameset".
+                            TODO();
+                            break;
+                        }
+
+                        // An end-of-file token
+                        if (token_is<EOFToken>(token))
+                        {
+                            // If the stack of template insertion modes is not empty, then process the token using the rules for the "in template" insertion mode.
+                            // Otherwise, follow these steps:
+                            // If there is a node in the stack of open elements that is not either a dd element, a dt element, an li element, an optgroup element, an option element, a p element, an rb element, an rp element, an rt element, an rtc element, a tbody element, a td element, a tfoot element, a th element, a thead element, a tr element, the body element, or the html element, then this is a parse error.
+                            // Stop parsing.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "body"
+                        if (token_is_end_tag(token, "body"))
+                        {
+                            // TODO(Peter):
+                            // If the stack of open elements does not have a body element in scope, this is a parse error; ignore the token.
+                            // Otherwise, if there is a node in the stack of open elements that is not either a dd element, a dt element, an li element, an optgroup element, an option element, a p element, an rb element, an rp element, an rt element, an rtc element, a tbody element, a td element, a tfoot element, a th element, a thead element, a tr element, the body element, or the html element, then this is a parse error.
+
+                            // Switch the insertion mode to "after body".
+                            m_insertion_mode = TreeInsertionMode::AfterBody;
+                            break;
+                        }
+
+                        // An end tag whose tag name is "html"
+                        if (token_is_end_tag(token, "html"))
+                        {
+                            // If the stack of open elements does not have a body element in scope, this is a parse error; ignore the token.
+                            // Otherwise, if there is a node in the stack of open elements that is not either a dd element, a dt element, an li element, an optgroup element, an option element, a p element, an rb element, an rp element, an rt element, an rtc element, a tbody element, a td element, a tfoot element, a th element, a thead element, a tr element, the body element, or the html element, then this is a parse error.
+                            // Switch the insertion mode to "after body".
+                            // Reprocess the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav", "ol", "p", "search", "section", "summary", "ul"
+                        if (token_is_start_tag_any_of(token, { "address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav", "ol", "p", "search", "section", "summary", "ul" }))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            for (auto* element : m_open_elements)
+                            {
+                                if (element->local_name == "p")
+                                {
+                                    TODO();
+                                }
+                            }
+
+                            // Insert an HTML element for the token.
+                            insert_html_element(token);
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "h1", "h2", "h3", "h4", "h5", "h6"
+                        if (token_is_start_tag_any_of(token, { "h1", "h2", "h3", "h4", "h5", "h6" }))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // If the current node is an HTML element whose tag name is one of "h1", "h2", "h3", "h4", "h5", or "h6", then this is a parse error; pop the current node off the stack of open elements.
+                            // Insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "pre", "listing"
+                        if (token_is_start_tag_any_of(token, { "pre", "listing" }))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // Insert an HTML element for the token.
+                            // If the next token is a U+000A LINE FEED (LF) character token, then ignore that token and move on to the next one. (Newlines at the start of pre blocks are ignored as an authoring convenience.)
+                            // Set the frameset-ok flag to "not ok".
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "form"
+                        if (token_is_start_tag(token, "form"))
+                        {
+                            // If the form element pointer is not null, and there is no template element on the stack of open elements, then this is a parse error; ignore the token.
+                            // Otherwise:
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // Insert an HTML element for the token, and, if there is no template element on the stack of open elements, set the form element pointer to point to the element created.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "li"
+                        if (token_is_start_tag(token, "li"))
+                        {
+                            // Run these steps:
+                            // Set the frameset-ok flag to "not ok".
+                            // Initialize node to be the current node (the bottommost node of the stack).
+                            // Loop: If node is an li element, then run these substeps:
+                            // Generate implied end tags, except for li elements.
+                            // If the current node is not an li element, then this is a parse error.
+                            // Pop elements from the stack of open elements until an li element has been popped from the stack.
+                            // Jump to the step labeled done below.
+                            // If node is in the special category, but is not an address, div, or p element, then jump to the step labeled done below.
+                            // Otherwise, set node to the previous entry in the stack of open elements and return to the step labeled loop.
+                            // Done: If the stack of open elements has a p element in button scope, then close a p element.
+                            // Finally, insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "dd", "dt"
+                        if (token_is_start_tag_any_of(token, { "dd", "dt" }))
+                        {
+                            // Run these steps:
+                            // Set the frameset-ok flag to "not ok".
+                            // Initialize node to be the current node (the bottommost node of the stack).
+                            // Loop: If node is a dd element, then run these substeps:
+                            // Generate implied end tags, except for dd elements.
+                            // If the current node is not a dd element, then this is a parse error.
+                            // Pop elements from the stack of open elements until a dd element has been popped from the stack.
+                            // Jump to the step labeled done below.
+                            // If node is a dt element, then run these substeps:
+                            // Generate implied end tags, except for dt elements.
+                            // If the current node is not a dt element, then this is a parse error.
+                            // Pop elements from the stack of open elements until a dt element has been popped from the stack.
+                            // Jump to the step labeled done below.
+                            // If node is in the special category, but is not an address, div, or p element, then jump to the step labeled done below.
+                            // Otherwise, set node to the previous entry in the stack of open elements and return to the step labeled loop.
+                            // Done: If the stack of open elements has a p element in button scope, then close a p element.
+                            // Finally, insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "plaintext"
+                        if (token_is_start_tag(token, "plaintext"))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // Insert an HTML element for the token.
+                            // Switch the tokenizer to the PLAINTEXT state.
+                            // Once a start tag with the tag name "plaintext" has been seen, all remaining tokens will be character tokens (and a final end-of-file token) because there is no way to switch the tokenizer out of the PLAINTEXT state. However, as the tree builder remains in its existing insertion mode, it might reconstruct the active formatting elements while processing those character tokens. This means that the parser can insert other elements into the plaintext element.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "button"
+                        if (token_is_start_tag(token, "button"))
+                        {
+                            // If the stack of open elements has a button element in scope, then run these substeps:
+                            // Parse error.
+                            // Generate implied end tags.
+                            // Pop elements from the stack of open elements until a button element has been popped from the stack.
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            // Set the frameset-ok flag to "not ok".
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is one of: "address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing", "main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul"
+                        if (token_is_end_tag_any_of(token, { "address", "article", "aside", "blockquote", "button", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing", "main", "menu", "nav", "ol", "pre", "search", "section", "summary", "ul" }))
+                        {
+                            // If the stack of open elements does not have an element in scope that is an HTML element with the same tag name as that of the token, then this is a parse error; ignore the token.
+                            // Otherwise, run these steps:
+                            // Generate implied end tags.
+                            while (current_node_is_any_of({ "dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc" }))
+                            {
+                                m_open_elements.pop_back();
+                            }
+
+                            // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
+                            if (dynamic_cast<HTMLElement*>(current_node()) && current_node()->local_name == token_tag_name(token))
+                            {
+                                TODO();
+                                break;
+                            }
+
+                            // Pop elements from the stack of open elements until an HTML element with the same tag name as the token has been popped from the stack.
+                            while (auto* current = current_node())
+                            {
+                                m_open_elements.pop_back();
+
+                                if (current->local_name == token_tag_name(token))
+                                {
+                                    break;
+                                }
+                            }
+
+                            break;
+                        }
+
+                        // An end tag whose tag name is "form"
+                        if (token_is_end_tag(token, "form"))
+                        {
+                            // If there is no template element on the stack of open elements, then run these substeps:
+                            // Let node be the element that the form element pointer is set to, or null if it is not set to an element.
+                            // Set the form element pointer to null.
+                            // If node is null or if the stack of open elements does not have node in scope, then this is a parse error; return and ignore the token.
+                            // Generate implied end tags.
+                            // If the current node is not node, then this is a parse error.
+                            // Remove node from the stack of open elements.
+                            // If there is a template element on the stack of open elements, then run these substeps instead:
+                            // If the stack of open elements does not have a form element in scope, then this is a parse error; return and ignore the token.
+                            // Generate implied end tags.
+                            // If the current node is not a form element, then this is a parse error.
+                            // Pop elements from the stack of open elements until a form element has been popped from the stack.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "p"
+                        if (token_is_end_tag(token, "p"))
+                        {
+                            // If the stack of open elements does not have a p element in button scope, then this is a parse error; insert an HTML element for a "p" start tag token with no attributes.
+                            // Close a p element.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "li"
+                        if (token_is_end_tag(token, "li"))
+                        {
+                            // If the stack of open elements does not have an li element in list item scope, then this is a parse error; ignore the token.
+                            // Otherwise, run these steps:
+                            // Generate implied end tags, except for li elements.
+                            // If the current node is not an li element, then this is a parse error.
+                            // Pop elements from the stack of open elements until an li element has been popped from the stack.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is one of: "dd", "dt"
+                        if (token_is_end_tag_any_of(token, { "dd", "dt" }))
+                        {
+                            // If the stack of open elements does not have an element in scope that is an HTML element with the same tag name as that of the token, then this is a parse error; ignore the token.
+                            // Otherwise, run these steps:
+                            // Generate implied end tags, except for HTML elements with the same tag name as the token.
+                            // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
+                            // Pop elements from the stack of open elements until an HTML element with the same tag name as the token has been popped from the stack.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is one of: "h1", "h2", "h3", "h4", "h5", "h6"
+                        if (token_is_end_tag_any_of(token, { "h1", "h2", "h3", "h4", "h5", "h6" }))
+                        {
+                            // If the stack of open elements does not have an element in scope that is an HTML element and whose tag name is one of "h1", "h2", "h3", "h4", "h5", or "h6", then this is a parse error; ignore the token.
+                            // Otherwise, run these steps:
+                            // Generate implied end tags.
+                            // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
+                            // Pop elements from the stack of open elements until an HTML element whose tag name is one of "h1", "h2", "h3", "h4", "h5", or "h6" has been popped from the stack.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "sarcasm"
+                        if (token_is_end_tag(token, "sarcasm"))
+                        {
+                            // Take a deep breath, then act as described in the "any other end tag" entry below.
+                        }
+
+                        // A start tag whose tag name is "a"
+                        if (token_is_start_tag(token, "a"))
+                        {
+                            // If the list of active formatting elements contains an a element between the end of the list and the last marker on the list (or the start of the list if there is no marker on the list), then this is a parse error; run the adoption agency algorithm for the token, then remove that element from the list of active formatting elements and the stack of open elements if the adoption agency algorithm didn't already remove it (it might not have if the element is not in table scope).
+                            // In the non-conforming stream <a href="a">a<table><a href="b">b</table>x, the first a element would be closed upon seeing the second one, and the "x" character would be inside a link to "b", not to "a". This is despite the fact that the outer a element is not in table scope (meaning that a regular </a> end tag at the start of the table wouldn't close the outer a element). The result is that the two a elements are indirectly nested inside each other — non-conforming markup will often result in non-conforming DOMs when parsed.
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token. Push onto the list of active formatting elements that element.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u"
+                        if (token_is_start_tag_any_of(token, { "b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u" }))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token. Push onto the list of active formatting elements that element.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "nobr"
+                        if (token_is_start_tag(token, "nobr"))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // If the stack of open elements has a nobr element in scope, then this is a parse error; run the adoption agency algorithm for the token, then once again reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token. Push onto the list of active formatting elements that element.
+                            // An end tag whose tag name is one of: "a", "b", "big", "code", "em", "font", "i", "nobr", "s", "small", "strike", "strong", "tt", "u"
+                            // Run the adoption agency algorithm for the token.
+                            // A start tag whose tag name is one of: "applet", "marquee", "object"
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            // Insert a marker at the end of the list of active formatting elements.
+                            // Set the frameset-ok flag to "not ok".
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag token whose tag name is one of: "applet", "marquee", "object"
+                        if (token_is_end_tag_any_of(token, { "applet", "marquee", "object" }))
+                        {
+                            // If the stack of open elements does not have an element in scope that is an HTML element with the same tag name as that of the token, then this is a parse error; ignore the token.
+                            // Otherwise, run these steps:
+                            // Generate implied end tags.
+                            // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
+                            // Pop elements from the stack of open elements until an HTML element with the same tag name as the token has been popped from the stack.
+                            // Clear the list of active formatting elements up to the last marker.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "table"
+                        if (token_is_start_tag(token, "table"))
+                        {
+                            // If the Document is not set to quirks mode, and the stack of open elements has a p element in button scope, then close a p element.
+                            // Insert an HTML element for the token.
+                            // Set the frameset-ok flag to "not ok".
+                            // Switch the insertion mode to "in table".
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "br"
+                        if (token_is_end_tag(token, "br"))
+                        {
+                            // Parse error. Drop the attributes from the token, and act as described in the next entry; i.e. act as if this was a "br" start tag token with no attributes, rather than the end tag token that it actually is.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "area", "br", "embed", "img", "keygen", "wbr"
+                        if (token_is_start_tag_any_of(token, { "area", "br", "embed", "img", "keygen", "wbr" }))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            insert_html_element(token);
+
+                            // Immediately pop the current node off the stack of open elements.
+                            m_open_elements.pop_back();
+
+                            // Acknowledge the token's self-closing flag, if it is set.
+                            // Set the frameset-ok flag to "not ok".
+
+                            m_frameset_ok = FramesetOK::NotOk;
+                            break;
+                        }
+
+                        // A start tag whose tag name is "input"
+                        if (token_is_start_tag(token, "input"))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            insert_html_element(token);
+
+                            // Immediately pop the current node off the stack of open elements.
+                            m_open_elements.pop_back();
+
+                            // Acknowledge the token's self-closing flag, if it is set.
+                            // If the token does not have an attribute with the name "type", or if it does, but that attribute's value is not an ASCII case-insensitive match for the string "hidden"
+                            auto type = get_token_attribute_value(&std::get<StartTagToken>(token), "type").value_or("");
+                            if (equals_case_insensitive(type, "hidden"))
+                            {
+                                // then: set the frameset-ok flag to "not ok".
+                                m_frameset_ok = FramesetOK::NotOk;
+                            }
+
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "param", "source", "track"
+                        if (token_is_start_tag_any_of(token, { "param", "source", "track" }))
+                        {
+                            // Insert an HTML element for the token. Immediately pop the current node off the stack of open elements.
+                            // Acknowledge the token's self-closing flag, if it is set.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "hr"
+                        if (token_is_start_tag(token, "hr"))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // Insert an HTML element for the token. Immediately pop the current node off the stack of open elements.
+                            // Acknowledge the token's self-closing flag, if it is set.
+                            // Set the frameset-ok flag to "not ok".
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "image"
+                        if (token_is_start_tag(token, "image"))
+                        {
+                            // Parse error. Change the token's tag name to "img" and reprocess it. (Don't ask.)
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "textarea"
+                        if (token_is_start_tag(token, "textarea"))
+                        {
+                            // Run these steps:
+                            // Insert an HTML element for the token.
+                            // If the next token is a U+000A LINE FEED (LF) character token, then ignore that token and move on to the next one. (Newlines at the start of textarea elements are ignored as an authoring convenience.)
+                            // Switch the tokenizer to the RCDATA state.
+                            // Set the original insertion mode to the current insertion mode.
+                            // Set the frameset-ok flag to "not ok".
+                            // Switch the insertion mode to "text".
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "xmp"
+                        if (token_is_start_tag(token, "xmp"))
+                        {
+                            // If the stack of open elements has a p element in button scope, then close a p element.
+                            // Reconstruct the active formatting elements, if any.
+                            // Set the frameset-ok flag to "not ok".
+                            // Follow the generic raw text element parsing algorithm.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "iframe"
+                        if (token_is_start_tag(token, "iframe"))
+                        {
+                            // Set the frameset-ok flag to "not ok".
+                            // Follow the generic raw text element parsing algorithm.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "noembed"
+                        // A start tag whose tag name is "noscript", if the scripting flag is enabled
+                        if (
+                            token_is_start_tag(token, "noembed") ||
+                            (token_is_start_tag(token, "noscript") && m_document->m_scripting)
+                        )
+                        {
+                            // Follow the generic raw text element parsing algorithm.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "select"
+                        if (token_is_start_tag(token, "select"))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            // Set the frameset-ok flag to "not ok".
+                            // If the insertion mode is one of "in table", "in caption", "in table body", "in row", or "in cell", then switch the insertion mode to "in select in table". Otherwise, switch the insertion mode to "in select".
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "optgroup", "option"
+                        if (token_is_start_tag_any_of(token, { "optgroup", "option" }))
+                        {
+                            // If the current node is an option element, then pop the current node off the stack of open elements.
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "rb", "rtc"
+                        if (token_is_start_tag_any_of(token, { "rb", "rtc" }))
+                        {
+                            // If the stack of open elements has a ruby element in scope, then generate implied end tags. If the current node is not now a ruby element, this is a parse error.
+                            // Insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "rp", "rt"
+                        if (token_is_start_tag_any_of(token, { "rp", "rt" }))
+                        {
+                            // If the stack of open elements has a ruby element in scope, then generate implied end tags, except for rtc elements. If the current node is not now a rtc element or a ruby element, this is a parse error.
+                            // Insert an HTML element for the token.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "math"
+                        if (token_is_start_tag(token, "math"))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Adjust MathML attributes for the token. (This fixes the case of MathML attributes that are not all lowercase.)
+                            // Adjust foreign attributes for the token. (This fixes the use of namespaced attributes, in particular XLink.)
+                            // Insert a foreign element for the token, with MathML namespace and false.
+                            // If the token has its self-closing flag set, pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is "svg"
+                        if (token_is_start_tag(token, "svg"))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Adjust SVG attributes for the token. (This fixes the case of SVG attributes that are not all lowercase.)
+                            // Adjust foreign attributes for the token. (This fixes the use of namespaced attributes, in particular XLink in SVG.)
+                            // Insert a foreign element for the token, with SVG namespace and false.
+                            // If the token has its self-closing flag set, pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
+                            TODO();
+                            break;
+                        }
+
+                        // A start tag whose tag name is one of: "caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr"
+                        if (token_is_start_tag_any_of(token, { "caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr" }))
+                        {
+                            // Parse error. Ignore the token.
+                            TODO();
+                            break;
+                        }
+
+                        // Any other start tag
+                        if (token_is<StartTagToken>(token))
+                        {
+                            // Reconstruct the active formatting elements, if any.
+                            // Insert an HTML element for the token.
+                            // This element will be an ordinary element. With one exception: if the scripting flag is disabled, it can also be a noscript element.
+                            TODO();
+                            break;
+                        }
+
+                        // Any other end tag
+                        if (token_is<StartTagToken>(token))
+                        {
+                            // Run these steps:
+                            // Initialize node to be the current node (the bottommost node of the stack).
+                            // Loop: If node is an HTML element with the same tag name as the token, then:
+                            // Generate implied end tags, except for HTML elements with the same tag name as the token.
+                            // If node is not the current node, then this is a parse error.
+                            // Pop all the nodes from the current node up to node, including node, then stop these steps.
+                            // Otherwise, if node is in the special category, then this is a parse error; ignore the token, and return.
+                            // Set node to the previous entry in the stack of open elements.
+                            // Return to the step labeled loop.
+                            TODO();
+                            break;
+                        }
+
+                        break;
+                    }
+                    case TreeInsertionMode::AfterBody:
+                    {
+                        // A character token that is one of U+0009 CHARACTER TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN (CR), or U+0020 SPACE
+                        if (token_is_character(token, '\t') || token_is_character(token, '\n') || token_is_character(token, '\f') || token_is_character(token, '\r') || token_is_character(token, ' '))
+                        {
+                            // Process the token using the rules for the "in body" insertion mode.
+                            insert_character({ &std::get<CharacterToken>(token).data, 1 });
+                            break;
+                        }
+
+                        // A comment token
+                        if (token_is<CommentToken>(token))
+                        {
+                            // Insert a comment as the last child of the first element in the stack of open elements (the html element).
+                            TODO();
+                            break;
+                        }
+
+                        // A DOCTYPE token
+                        if (token_is<DOCTYPEToken>(token))
+                        {
+                            // Parse error. Ignore the token.
+                            break;
+                        }
+
+                        // A start tag whose tag name is "html"
+                        if (token_is_start_tag(token, "html"))
+                        {
+                            // Process the token using the rules for the "in body" insertion mode.
+                            TODO();
+                            break;
+                        }
+
+                        // An end tag whose tag name is "html"
+                        if (token_is_end_tag(token, "html"))
+                        {
+                            // If the parser was created as part of the HTML fragment parsing algorithm, this is a parse error; ignore the token. (fragment case)
+                            // Otherwise, switch the insertion mode to "after after body".
+                            TODO();
+                            break;
+                        }
+
+                        // An end-of-file token
+                        if (token_is<EOFToken>(token))
+                        {
+                            // Stop parsing.
+                            stop_parsing();
+                            break;
+                        }
+
+                        // Anything else
+                        //     Parse error. Switch the insertion mode to "in body" and reprocess the token.
+                        m_insertion_mode = TreeInsertionMode::InBody;
+                        reprocess = true;
+                        break;
+                    }
                     default:
                     {
                         TODO();
@@ -625,6 +1423,104 @@ namespace hanami::html {
         } while (reprocess);
     }
 
+    void TreeBuilder::print_dom()
+    {
+        static int32_t num_indents = -1;
+        static bool exclude_empty_cdata = false;
+
+        auto print_node = [&](this auto&& self, Node* node) -> void
+        {
+            ++num_indents;
+            kori_defer { --num_indents; };
+
+            auto indents = std::string{};
+            for (int32_t i = 0; i < num_indents; i++)
+                indents += '\t';
+
+            if (const auto* cdata = dynamic_cast<CharacterData*>(node))
+            {
+                if ((cdata->m_data == " " || cdata->m_data == "\n" || cdata->m_data == "\t" || cdata->m_data == "\f") && exclude_empty_cdata && node->m_child_nodes.empty())
+                {
+                    return;
+                }
+            }
+
+            std::println("{}- {}:", indents, node_type_str(node->m_type));
+
+            indents += '\t';
+
+            if (const auto* elem = dynamic_cast<Element*>(node))
+            {
+                std::println("{}Namespace URI: {}", indents, elem->namespace_uri.value_or(""));
+                std::println("{}Namespace Prefix: {}", indents, elem->namespace_prefix.value_or(""));
+                std::println("{}Local Name: {}", indents, elem->local_name);
+            }
+
+            if (const auto* cdata = dynamic_cast<CharacterData*>(node))
+            {
+                std::println("{}Data: {}", indents, cdata->m_data);
+            }
+
+            if (!node->m_child_nodes.empty())
+            {
+                std::println("{}Children:", indents);
+                for (auto* child : node->m_child_nodes)
+                {
+                    self(child);
+                }
+            }
+        };
+
+        print_node(m_document.get());
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#stop-parsing
+    void TreeBuilder::stop_parsing()
+    {
+        // If the active speculative HTML parser is not null, then stop the speculative HTML parser and return.
+        // Set the insertion point to undefined.
+        // Update the current document readiness to "interactive".
+        // Pop all the nodes off the stack of open elements.
+        m_open_elements.clear();
+
+        // While the list of scripts that will execute when the document has finished parsing is not empty:
+        // Spin the event loop until the first script in the list of scripts that will execute when the document has finished parsing has its ready to be parser-executed set to true and the parser's Document has no style sheet that is blocking scripts.
+        // Execute the script element given by the first script in the list of scripts that will execute when the document has finished parsing.
+        // Remove the first script element from the list of scripts that will execute when the document has finished parsing (i.e. shift out the first entry in the list).
+        // Queue a global task on the DOM manipulation task source given the Document's relevant global object to run the following substeps:
+        // Set the Document's load timing info's DOM content loaded event start time to the current high resolution time given the Document's relevant global object.
+        // Fire an event named DOMContentLoaded at the Document object, with its bubbles attribute initialized to true.
+        // Set the Document's load timing info's DOM content loaded event end time to the current high resolution time given the Document's relevant global object.
+        // Enable the client message queue of the ServiceWorkerContainer object whose associated service worker client is the Document object's relevant settings object.
+        // Invoke WebDriver BiDi DOM content loaded with the Document's browsing context, and a new WebDriver BiDi navigation status whose id is the Document object's during-loading navigation ID for WebDriver BiDi, status is "pending", and url is the Document object's URL.
+        // Spin the event loop until the set of scripts that will execute as soon as possible and the list of scripts that will execute in order as soon as possible are empty.
+        // Spin the event loop until there is nothing that delays the load event in the Document.
+        // Queue a global task on the DOM manipulation task source given the Document's relevant global object to run the following steps:
+        // Update the current document readiness to "complete".
+        // If the Document object's browsing context is null, then abort these steps.
+        // Let window be the Document's relevant global object.
+        // Set the Document's load timing info's load event start time to the current high resolution time given window.
+        // Fire an event named load at window, with legacy target override flag set.
+        // Invoke WebDriver BiDi load complete with the Document's browsing context, and a new WebDriver BiDi navigation status whose id is the Document object's during-loading navigation ID for WebDriver BiDi, status is "complete", and url is the Document object's URL.
+        // Set the Document object's during-loading navigation ID for WebDriver BiDi to null.
+        // Set the Document's load timing info's load event end time to the current high resolution time given window.
+        // Assert: Document's page showing is false.
+        // Set the Document's page showing to true.
+        // Fire a page transition event named pageshow at window with false.
+        // Completely finish loading the Document.
+        // Queue the navigation timing entry for the Document.
+        // If the Document's print when loaded flag is set, then run the printing steps.
+        // The Document is now ready for post-load tasks.
+        // When the user agent is to abort a parser, it must run the following steps:
+        // Throw away any pending content in the input stream, and discard any future content that would have been added to it.
+        // Stop the speculative HTML parser for this HTML parser.
+        // Update the current document readiness to "interactive".
+        // Pop all the nodes off the stack of open elements.
+        // Update the current document readiness to "complete".
+
+        print_dom();
+    }
+
     auto TreeBuilder::current_node() const noexcept -> Element*
     {
         // The current node is the bottommost node in this stack of open elements.
@@ -643,6 +1539,14 @@ namespace hanami::html {
         // part of the HTML fragment parsing algorithm and the stack of open elements has
         // only one element in it (fragment case); otherwise, the adjusted current node is the current node.
         return current_node();
+    }
+
+    auto TreeBuilder::current_node_is_any_of(std::span<const std::string_view> tags) const noexcept -> bool
+    {
+        return std::ranges::any_of(tags, [&](auto tag)
+        {
+            return current_node()->local_name == tag;
+        });
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#appropriate-place-for-inserting-a-node
@@ -689,18 +1593,7 @@ namespace hanami::html {
         }
 
         // If there is a Text node immediately before the adjusted insertion location, then append data to that Text node's data.
-        /*Node* before = nullptr;
-
-        if (adjusted_insertion_location == current_node()->m_child_nodes.end())
-        {
-            before = nullptr;
-        }
-        else if (adjusted_insertion_location != current_node()->m_child_nodes.begin())
-        {
-            before = *(adjusted_insertion_location--);
-        }*/
-
-        if (auto* t = dynamic_cast<Text*>(*adjusted_insertion_location); t)
+        if (auto* t = dynamic_cast<Text*>(*(adjusted_insertion_location--)); t)
         {
             t->m_data += data;
         }

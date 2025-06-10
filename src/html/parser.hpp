@@ -12,6 +12,8 @@ namespace hanami::html {
 
         void parse(std::string_view html);
 
+        auto document() const -> Document*;
+
     private:
         [[nodiscard]]
         static auto normalize_input_stream(std::string_view in) noexcept -> std::string;
