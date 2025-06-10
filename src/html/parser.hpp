@@ -8,6 +8,8 @@ namespace hanami::html {
     class Parser
     {
     public:
+        Parser() noexcept;
+
         void parse(std::string_view html);
 
     private:

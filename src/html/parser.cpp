@@ -3,11 +3,13 @@
 #include <regex>
 #include <print>
 #include <algorithm>
-#include <csignal>
-
-#include "kori/core.hpp"
 
 namespace hanami::html {
+
+    Parser::Parser() noexcept
+        : m_tree_builder(&m_tokenizer)
+    {
+    }
 
     void Parser::parse(std::string_view html)
     {

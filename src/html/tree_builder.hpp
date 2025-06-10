@@ -252,10 +252,12 @@ namespace hanami::html {
         AfterAfterFrameset,
     };
 
+    class Tokenizer;
+
     class TreeBuilder
     {
     public:
-        TreeBuilder() noexcept;
+        TreeBuilder(Tokenizer* tokenizer) noexcept;
 
         // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
         void process_token(const Token& token);
@@ -293,7 +295,12 @@ namespace hanami::html {
             std::string_view state,
             std::optional<std::string_view> is) -> Element*;
 
+        void parse_generic_raw_text_element(const Token& token);
+        void parse_generic_rcdata_element(const Token& token, bool generic_raw_text_parse = false);
+
     private:
+        Tokenizer* m_tokenizer = nullptr;
+        TreeInsertionMode m_original_insertion_mode = TreeInsertionMode::Initial;
         TreeInsertionMode m_insertion_mode = TreeInsertionMode::Initial;
         std::vector<Element*> m_open_elements{};
         std::unique_ptr<Document> m_document{};

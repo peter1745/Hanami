@@ -117,7 +117,15 @@ namespace hanami::html {
             CommentEnd,
             CommentEndBang,
             CommentLessThanSignBang,
+            RAWTEXT,
+            RCDATA,
+            RCDATALessThanSign,
         };
+
+        void set_state(State state) noexcept
+        {
+            m_state = state;
+        }
 
     private:
         void emit_token(const Token& token) const;

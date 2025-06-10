@@ -5,8 +5,8 @@
 
 #include "kori/core.hpp"
 
-//#define TODO(...) raise(SIGTRAP)
-#define TODO(...)
+#define TODO(...) raise(SIGTRAP)
+//#define TODO(...)
 
 namespace hanami::html {
 
@@ -61,9 +61,9 @@ namespace hanami::html {
         return insert_before(node, nullptr);
     }
 
-    TreeBuilder::TreeBuilder() noexcept
+    TreeBuilder::TreeBuilder(Tokenizer* tokenizer) noexcept
+        : m_tokenizer(tokenizer), m_document(std::make_unique<Document>())
     {
-        m_document = std::make_unique<Document>();
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction
@@ -421,7 +421,7 @@ namespace hanami::html {
                             if (t->name == "title")
                             {
                                 // Follow the generic RCDATA element parsing algorithm.
-                                TODO("This requires implementing proper tokenizer - tree builder intero. E.g emitted tokens immediately get processed by the tree construction. Do this next.");
+                                parse_generic_rcdata_element(*t);
                                 break;
                             }
 
@@ -912,5 +912,36 @@ namespace hanami::html {
         return element;
     }
 
+    // https://html.spec.whatwg.org/multipage/parsing.html#generic-rcdata-element-parsing-algorithm
+    void TreeBuilder::parse_generic_raw_text_element(const Token& token)
+    {
+        parse_generic_rcdata_element(token, true);
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#generic-rcdata-element-parsing-algorithm
+    void TreeBuilder::parse_generic_rcdata_element(const Token& token, bool generic_raw_text_parse)
+    {
+        // Insert an HTML element for the token.
+        insert_html_element(token);
+
+        // If the algorithm that was invoked is the generic raw text element parsing algorithm
+        if (generic_raw_text_parse)
+        {
+            // switch the tokenizer to the RAWTEXT state;
+            m_tokenizer->set_state(Tokenizer::State::RAWTEXT);
+        }
+        else
+        {
+            // otherwise the algorithm invoked was the generic RCDATA element parsing algorithm,
+            // switch the tokenizer to the RCDATA state.
+            m_tokenizer->set_state(Tokenizer::State::RCDATA);
+        }
+
+        // Set the original insertion mode to the current insertion mode.
+        m_original_insertion_mode = m_insertion_mode;
+
+        // Then, switch the insertion mode to "text".
+        m_insertion_mode = TreeInsertionMode::Text;
+    }
 
 }

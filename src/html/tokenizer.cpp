@@ -1403,6 +1403,53 @@ namespace hanami::html {
                 reconsume_in(State::Comment);
                 break;
             }
+            case State::RCDATA:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // EOF
+                if (reached_eof())
+                {
+                    // Emit an end-of-file token.
+                    emit_token(EOFToken{});
+                    break;
+                }
+
+                // U+0026 AMPERSAND (&)
+                if (c == '&')
+                {
+                    // Set the return state to the RCDATA state. Switch to the character reference state.
+                    m_return_state = State::RCDATA;
+                    m_state = State::CharacterReference;
+                    break;
+                }
+
+                // U+003C LESS-THAN SIGN (<)
+                if (c == '<')
+                {
+                    // Switch to the RCDATA less-than sign state.
+                    m_state = State::RCDATALessThanSign;
+                    break;
+                }
+
+                // U+0000 NULL
+                if (c == '\0')
+                {
+                    // This is an unexpected-null-character parse error.
+                    // parse_error(ErrorType::UnexpectedNullCharacter);
+
+                    // FIXME(Peter): Handle multi-byte characters
+                    // Emit a U+FFFD REPLACEMENT CHARACTER character token.
+                    emit_token(CharacterToken{ '?' });
+                    break;
+                }
+
+                // Anything else
+                //     Emit the current input character as a character token.
+                emit_token(CharacterToken{ c });
+                break;
+            }
             default:
             {
                 raise(SIGTRAP);
