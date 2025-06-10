@@ -112,7 +112,7 @@ namespace hanami::html {
         }
     }
 
-    void Tokenizer::emit_token(const Token& token) const
+    void Tokenizer::emit_token(const Token& token)
     {
         if (!m_emit_token)
         {
@@ -122,6 +122,12 @@ namespace hanami::html {
 
         std::println("Tokenizer: Emitting token:");
         print_token(token);
+
+        if (const auto* start_tag = std::get_if<StartTagToken>(&token); start_tag)
+        {
+            m_last_emitted_start_token_name = start_tag->name;
+        }
+
         m_emit_token(token);
     }
 
@@ -172,6 +178,19 @@ namespace hanami::html {
         }
 
         return equals_case_insensitive(m_input_stream.substr(m_current_char_idx, chars.length()) , chars);
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#appropriate-end-tag-token
+    auto Tokenizer::current_is_appropriate_end_tag() const noexcept -> bool
+    {
+        const auto* end_tag = std::get_if<EndTagToken>(&m_current_token);
+
+        if (!end_tag || m_last_emitted_start_token_name.empty())
+        {
+            return false;
+        }
+
+        return end_tag->name == m_last_emitted_start_token_name;
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#tokenization
@@ -1448,6 +1467,148 @@ namespace hanami::html {
                 // Anything else
                 //     Emit the current input character as a character token.
                 emit_token(CharacterToken{ c });
+                break;
+            }
+            case State::RCDATALessThanSign:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // U+002F SOLIDUS (/)
+                if (c == '/')
+                {
+                    // Set the temporary buffer to the empty string.
+                    m_temporary_buffer = "";
+
+                    // Switch to the RCDATA end tag open state.
+                    m_state = State::RCDATAEndTagOpen;
+                    break;
+                }
+
+                // Anything else
+                //     Emit a U+003C LESS-THAN SIGN character token.
+                emit_token(CharacterToken{ '<' });
+
+                // Reconsume in the RCDATA state.
+                reconsume_in(State::RCDATA);
+                break;
+            }
+            case State::RCDATAEndTagOpen:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // ASCII alpha
+                if (is_ascii_alpha(c))
+                {
+                    // Create a new end tag token, set its tag name to the empty string.
+                    m_current_token = EndTagToken { "" };
+
+                    // Reconsume in the RCDATA end tag name state.
+                    reconsume_in(State::RCDATAEndTagName);
+                    break;
+                }
+
+                // Anything else
+                //     Emit a U+003C LESS-THAN SIGN character token and a U+002F SOLIDUS character token. Reconsume in the RCDATA state.
+                emit_token(CharacterToken{ '<' });
+                emit_token(CharacterToken{ '/' });
+                reconsume_in(State::RCDATA);
+                break;
+            }
+            case State::RCDATAEndTagName:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // U+0009 CHARACTER TABULATION (tab)
+                // U+000A LINE FEED (LF)
+                // U+000C FORM FEED (FF)
+                // U+0020 SPACE
+                if (c == '\t' || c == '\n' || c == '\f' || c == ' ')
+                {
+                    // If the current end tag token is an appropriate end tag token, then switch to the before attribute name state.
+                    if (current_is_appropriate_end_tag())
+                    {
+                        m_state = State::BeforeAttributeName;
+                        break;
+                    }
+
+                    // Otherwise, treat it as per the "anything else" entry below.
+                }
+
+                // U+002F SOLIDUS (/)
+                if (c == '/')
+                {
+                    // If the current end tag token is an appropriate end tag token, then switch to the self-closing start tag state.
+                    if (current_is_appropriate_end_tag())
+                    {
+                        m_state = State::SelfClosingStartTag;
+                        break;
+                    }
+
+                    // Otherwise, treat it as per the "anything else" entry below.
+                }
+
+                // U+003E GREATER-THAN SIGN (>)
+                if (c == '>')
+                {
+                    // If the current end tag token is an appropriate end tag token, then switch to the data state and emit the current tag token.
+                    if (current_is_appropriate_end_tag())
+                    {
+                        m_state = State::Data;
+                        emit_token(m_current_token);
+                        break;
+                    }
+
+                    // Otherwise, treat it as per the "anything else" entry below.
+                }
+
+                // ASCII upper alpha
+                if (is_ascii_upper_alpha(c))
+                {
+                    // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current tag token's tag name.
+                    std::visit(kori::VariantOverloadSet {
+                        [&](StartTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
+                        [&](EndTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
+                        [](auto&&) { raise(SIGTRAP); }
+                    }, m_current_token);
+
+                    // Append the current input character to the temporary buffer.
+                    m_temporary_buffer += c;
+                    break;
+                }
+
+                // ASCII lower alpha
+                if (is_ascii_lower_alpha(c))
+                {
+                    // Append the current input character to the current tag token's tag name.
+                    std::visit(kori::VariantOverloadSet {
+                        [&](StartTagToken& token) { token.name += c; },
+                        [&](EndTagToken& token) { token.name += c; },
+                        [](auto&&) { raise(SIGTRAP); }
+                    }, m_current_token);
+
+                    // Append the current input character to the temporary buffer.
+                    m_temporary_buffer += c;
+                    break;
+                }
+
+                // Anything else
+                // Emit a U+003C LESS-THAN SIGN character token,
+                emit_token(CharacterToken{ '<'} );
+
+                // a U+002F SOLIDUS character token,
+                emit_token(CharacterToken{ '/'} );
+
+                // and a character token for each of the characters in the temporary buffer (in the order they were added to the buffer).
+                for (const auto character : m_temporary_buffer)
+                {
+                    emit_token(CharacterToken{ character } );
+                }
+
+                // Reconsume in the RCDATA state.
+                reconsume_in(State::RCDATA);
                 break;
             }
             default:

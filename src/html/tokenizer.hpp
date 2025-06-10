@@ -120,6 +120,8 @@ namespace hanami::html {
             RAWTEXT,
             RCDATA,
             RCDATALessThanSign,
+            RCDATAEndTagOpen,
+            RCDATAEndTagName,
         };
 
         void set_state(State state) noexcept
@@ -128,7 +130,7 @@ namespace hanami::html {
         }
 
     private:
-        void emit_token(const Token& token) const;
+        void emit_token(const Token& token);
 
         auto consume_multiple_chars(size_t count) noexcept -> std::string_view;
         auto consume_next_character() noexcept -> char;
@@ -143,6 +145,8 @@ namespace hanami::html {
         enum class ProcessResult { Continue, Abort };
         auto process_next_token() -> ProcessResult;
 
+        auto current_is_appropriate_end_tag() const noexcept -> bool;
+
     private:
         EmitTokenFunc m_emit_token;
         std::string_view m_input_stream;
@@ -150,6 +154,7 @@ namespace hanami::html {
         State m_state = State::Invalid;
         State m_return_state = State::Invalid;
 
+        std::string m_last_emitted_start_token_name;
         Token m_current_token{};
 
         size_t m_current_char_idx = 0;
