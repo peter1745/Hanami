@@ -1,3 +1,5 @@
+#include "dom/text.hpp"
+#include "html/parser.hpp"
 #include "html/tokenizer.hpp"
 #include "html/tree_builder.hpp"
 
@@ -8,8 +10,6 @@
 #include <string_view>
 #include <mwl/mwl.hpp>
 #include <kori/core.hpp>
-
-#include "html/parser.hpp"
 
 #include <cairo/cairo.h>
 
@@ -29,7 +29,7 @@ int main()
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("tests/parsing/text.html");
+        std::ifstream stream("tests/parsing/basic.html");
 
         if (!stream)
         {
@@ -45,7 +45,7 @@ int main()
 
     auto* document = parser.document();
 
-    std::vector<html::Text*> text_elements;
+    std::vector<dom::Text*> text_elements;
 
     [&text_elements](this auto&& self, html::Node* node) -> void
     {

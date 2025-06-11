@@ -14,6 +14,9 @@ target_sources(hanami
     PRIVATE
         main.cpp
 
+        # DOM
+        dom/node.cpp
+
         # HTML
         html/tokenizer.cpp
         html/tree_builder.cpp

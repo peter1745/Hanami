@@ -21,7 +21,7 @@ namespace hanami::html {
         });
     }
 
-    auto Parser::document() const -> Document*
+    auto Parser::document() const -> dom::Document*
     {
         return m_tree_builder.document();
     }

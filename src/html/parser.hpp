@@ -12,7 +12,7 @@ namespace hanami::html {
 
         void parse(std::string_view html);
 
-        auto document() const -> Document*;
+        auto document() const -> dom::Document*;
 
     private:
         [[nodiscard]]
