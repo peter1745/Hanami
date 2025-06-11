@@ -141,7 +141,7 @@ namespace hanami::html {
     protected:
         CharacterData(NodeType type, std::string_view data) noexcept
             : Node(type), m_data(data) {}
-    private:
+    protected:
         std::string m_data;
 
         friend class TreeBuilder;
@@ -234,6 +234,12 @@ namespace hanami::html {
     public:
         Text(std::string_view data = "")
             : CharacterData(NodeType::Text, data) {}
+
+        [[nodiscard]]
+        auto whole_text() const noexcept -> std::string_view
+        {
+            return m_data;
+        }
     };
 
     // https://html.spec.whatwg.org/multipage/dom.html#document
@@ -244,11 +250,19 @@ namespace hanami::html {
             : Node(NodeType::Document)
         {}
 
+        [[nodiscard]]
+        auto head() const noexcept -> Element* { return m_head; }
+
+        [[nodiscard]]
+        auto body() const noexcept -> Element* { return m_body; }
+
     private:
         Element* m_head = nullptr;
+        Element* m_body = nullptr;
         bool m_scripting = false;
 
         friend class TreeBuilder;
+        friend class Node;
     };
 
     // https://dom.spec.whatwg.org/#concept-element-interface

@@ -49,6 +49,12 @@ namespace hanami::html {
         auto reference_child_pos = std::ranges::find(m_child_nodes, reference_child);
         m_child_nodes.insert(reference_child_pos, node);
 
+        // FIXME(Peter): Set Document m_body
+        if (auto* elem = dynamic_cast<Element*>(node); elem && elem->local_name == "body")
+        {
+            m_document->m_body = elem;
+        }
+
         // FIXME(Peter): Hack around using the proper insertion steps.
         node->m_document = m_type == NodeType::Document ? dynamic_cast<Document*>(this) : m_document;
         node->m_parent = this;
