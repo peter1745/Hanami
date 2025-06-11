@@ -1,5 +1,5 @@
-#include "node.hpp"
-#include "element.hpp"
+#include "Node.hpp"
+#include "Element.hpp"
 #include "document.hpp"
 
 namespace hanami::dom {

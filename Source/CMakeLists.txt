@@ -12,19 +12,19 @@ add_executable(hanami)
 
 target_sources(hanami
     PRIVATE
-        main.cpp
+        Main.cpp
 
         # DOM
-        dom/node.cpp
+        DOM/Node.cpp
 
         # HTML
-        html/tokenizer.cpp
-        html/tree_builder.cpp
-        html/parser.cpp)
+        HTML/Tokenizer.cpp
+        HTML/TreeBuilder.cpp
+        HTML/Parser.cpp)
 
 target_include_directories(hanami
     PRIVATE
-        ../src/)
+        ./)
 
 target_link_libraries(hanami
         PRIVATE

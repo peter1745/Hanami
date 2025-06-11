@@ -1,10 +1,10 @@
-#include "tree_builder.hpp"
+#include "TreeBuilder.hpp"
 
-#include "dom/text.hpp"
-#include "dom/comment.hpp"
-#include "dom/document.hpp"
-#include "dom/html_element.hpp"
-#include "dom/character_data.hpp"
+#include "DOM/Text.hpp"
+#include "DOM/Comment.hpp"
+#include "DOM/Document.hpp"
+#include "DOM/HTMLElement.hpp"
+#include "DOM/CharacterData.hpp"
 
 #include <csignal>
 #include <print>

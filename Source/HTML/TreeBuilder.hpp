@@ -1,10 +1,10 @@
 #pragma once
 
-#include "tokenizer.hpp"
-#include "tree_builder.hpp"
+#include "Tokenizer.hpp"
+#include "TreeBuilder.hpp"
 
-#include "dom/document.hpp"
-#include "dom/element.hpp"
+#include "DOM/Document.hpp"
+#include "DOM/Element.hpp"
 
 namespace hanami::html {
 

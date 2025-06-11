@@ -16,7 +16,7 @@ else()
     message(FATAL_ERROR "Unsupported Platform!")
 endif()
 
-add_subdirectory(src)
+add_subdirectory(Source)
 
 set(MWL_BUILD_EXAMPLES OFF)
 add_subdirectory(mwl)

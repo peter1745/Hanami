@@ -1,6 +1,6 @@
 #pragma once
 
-#include "character_data.hpp"
+#include "CharacterData.hpp"
 
 namespace hanami::dom {
 

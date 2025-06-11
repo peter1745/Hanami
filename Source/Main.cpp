@@ -1,7 +1,7 @@
-#include "dom/text.hpp"
-#include "html/parser.hpp"
-#include "html/tokenizer.hpp"
-#include "html/tree_builder.hpp"
+#include "DOM/Text.hpp"
+#include "HTML/Parser.hpp"
+#include "HTML/Tokenizer.hpp"
+#include "HTML/TreeBuilder.hpp"
 
 #include <print>
 #include <fstream>
@@ -29,7 +29,7 @@ int main()
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("tests/parsing/basic.html");
+        std::ifstream stream("Tests/Parsing/Basic.html");
 
         if (!stream)
         {

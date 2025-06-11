@@ -1,5 +1,5 @@
-#include "tokenizer.hpp"
-#include "core/core.hpp"
+#include "Tokenizer.hpp"
+#include "Core/Core.hpp"
 
 #include <kori/core.hpp>
 

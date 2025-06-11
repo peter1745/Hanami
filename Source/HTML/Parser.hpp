@@ -1,7 +1,7 @@
 #pragma once
 
-#include "tokenizer.hpp"
-#include "tree_builder.hpp"
+#include "Tokenizer.hpp"
+#include "TreeBuilder.hpp"
 
 namespace hanami::html {
 

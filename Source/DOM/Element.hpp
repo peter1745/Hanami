@@ -1,6 +1,6 @@
 #pragma once
 
-#include "node.hpp"
+#include "Node.hpp"
 
 namespace hanami::dom {
 
