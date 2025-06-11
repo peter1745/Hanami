@@ -9,7 +9,7 @@
 #include <csignal>
 #include <print>
 
-#include "kori/core.hpp"
+#include "Kori/Core.hpp"
 
 #define NOT_IMPLEMENTED(...)
 
@@ -1381,7 +1381,7 @@ namespace Hanami::HTML {
         auto print_node = [&](this auto&& self, Node* node) -> void
         {
             ++num_indents;
-            kori_defer { --num_indents; };
+            KoriDefer { --num_indents; };
 
             auto indents = std::string{};
             for (int32_t i = 0; i < num_indents; i++)
@@ -1628,7 +1628,7 @@ namespace Hanami::HTML {
     auto TreeBuilder::create_element_for_token(const Token& token, std::string_view element_namespace, Node* intended_parent) -> Element*
     {
         const TagToken* tag_token = nullptr;
-        std::visit(kori::VariantOverloadSet {
+        std::visit(Kori::VariantOverloadSet {
             [&](const StartTagToken& tag) { tag_token = &tag; },
             [&](const EndTagToken& tag) { tag_token = &tag; },
             [](auto&&) { HANAMI_TRAP(); }

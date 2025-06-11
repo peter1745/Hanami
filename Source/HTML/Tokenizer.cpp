@@ -1,7 +1,7 @@
 #include "Tokenizer.hpp"
 #include "Core/Core.hpp"
 
-#include <kori/core.hpp>
+#include <Kori/Core.hpp>
 
 #include <regex>
 #include <print>
@@ -17,33 +17,9 @@
 
 namespace Hanami::HTML {
 
-    // https://infra.spec.whatwg.org/#ascii-upper-alpha
-    static auto is_ascii_upper_alpha(char c) -> bool
-    {
-        return c >= 'A' && c <= 'Z';
-    }
-
-    // https://infra.spec.whatwg.org/#ascii-lower-alpha
-    static auto is_ascii_lower_alpha(char c) -> bool
-    {
-        return c >= 'a' && c <= 'z';
-    }
-
-    // https://infra.spec.whatwg.org/#ascii-alpha
-    static auto is_ascii_alpha(char c) -> bool
-    {
-        return is_ascii_lower_alpha(c) || is_ascii_upper_alpha(c);
-    }
-
-    // https://infra.spec.whatwg.org/#ascii-alphanumeric
-    static auto is_ascii_alpha_numeric(char c) -> bool
-    {
-        return (c >= '0' && c <= '9') || is_ascii_alpha(c);
-    }
-
     void Tokenizer::print_token(const Token& t)
     {
-        std::visit(kori::VariantOverloadSet {
+        std::visit(Kori::VariantOverloadSet {
             [](const DOCTYPEToken& token)
             {
                 std::println("DOCTYPE(name = {}, force_quirks = {})", token.name, token.force_quirks);
@@ -736,7 +712,7 @@ namespace Hanami::HTML {
                 if (is_ascii_upper_alpha(c))
                 {
                     // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current tag token's tag name.
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
                             token.name += static_cast<char>(std::tolower(c));
@@ -757,7 +733,7 @@ namespace Hanami::HTML {
                     // parse_error(ErrorType::UnexpectedNullCharacter);
 
                     // Append a U+FFFD REPLACEMENT CHARACTER character to the current tag token's tag name.
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
                             token.name += "�";
@@ -773,7 +749,7 @@ namespace Hanami::HTML {
 
                 // Anything else
                 // Append the current input character to the current tag token's tag name.
-                std::visit(kori::VariantOverloadSet {
+                std::visit(Kori::VariantOverloadSet {
                     [&](StartTagToken& token)
                     {
                         token.name += static_cast<char>(std::tolower(c));
@@ -806,7 +782,7 @@ namespace Hanami::HTML {
                 if (c == '>')
                 {
                     // Set the self-closing flag of the current tag token.
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
                             token.self_closing = true;
@@ -872,7 +848,7 @@ namespace Hanami::HTML {
                         .value =""
                     };
 
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token)
                         {
                             m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
@@ -897,7 +873,7 @@ namespace Hanami::HTML {
                     .value =""
                 };
 
-                std::visit(kori::VariantOverloadSet {
+                std::visit(Kori::VariantOverloadSet {
                     [&](StartTagToken& token)
                     {
                         m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
@@ -1557,7 +1533,7 @@ namespace Hanami::HTML {
                 if (is_ascii_upper_alpha(c))
                 {
                     // Append the lowercase version of the current input character (add 0x0020 to the character's code point) to the current tag token's tag name.
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
                         [&](EndTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
                         [](auto&&) { HANAMI_TRAP(); }
@@ -1572,7 +1548,7 @@ namespace Hanami::HTML {
                 if (is_ascii_lower_alpha(c))
                 {
                     // Append the current input character to the current tag token's tag name.
-                    std::visit(kori::VariantOverloadSet {
+                    std::visit(Kori::VariantOverloadSet {
                         [&](StartTagToken& token) { token.name += c; },
                         [&](EndTagToken& token) { token.name += c; },
                         [](auto&&) { HANAMI_TRAP(); }

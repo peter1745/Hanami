@@ -10,7 +10,7 @@
 #include <optional>
 #include <string_view>
 
-#include "kori/core.hpp"
+#include "Kori/Core.hpp"
 
 namespace Hanami::HTML {
 
@@ -124,7 +124,7 @@ namespace Hanami::HTML {
     inline auto token_tag_name(const Token& token) -> std::string_view
     {
         auto name = std::string_view{};
-        std::visit(kori::VariantOverloadSet {
+        std::visit(Kori::VariantOverloadSet {
             [&](const StartTagToken& start_tag) { name = start_tag.name; },
             [&](const EndTagToken& end_tag) { name = end_tag.name; },
             [](auto&&) {}

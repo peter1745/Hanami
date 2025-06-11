@@ -9,7 +9,7 @@
 #include <sstream>
 #include <string_view>
 #include <mwl/mwl.hpp>
-#include <kori/core.hpp>
+#include <Kori/Core.hpp>
 
 #include <cairo/cairo.h>
 
@@ -18,18 +18,18 @@ using namespace Hanami;
 int main()
 {
     auto mwl_state = mwl::State::create({ .client_api = mwl::ClientAPI::Wayland });
-    kori_defer { mwl_state.destroy(); };
+    KoriDefer { mwl_state.destroy(); };
 
     bool running = true;
 
     auto win = mwl::Window::create(mwl_state, "Hanami", 1920, 1080);
-    kori_defer { win.destroy(); };
+    KoriDefer { win.destroy(); };
     win.set_close_callback([&] { running = false; });
 
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("Tests/Parsing/Large.html");
+        std::ifstream stream("Tests/Parsing/Basic.html");
 
         if (!stream)
         {
