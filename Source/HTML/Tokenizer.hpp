@@ -12,7 +12,7 @@
 
 #include "kori/core.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     struct DOCTYPEToken
     {

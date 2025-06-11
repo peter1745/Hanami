@@ -2,7 +2,7 @@
 #include "Element.hpp"
 #include "document.hpp"
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     auto Node::first_child() const noexcept -> Node*
     {

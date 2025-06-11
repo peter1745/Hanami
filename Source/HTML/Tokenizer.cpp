@@ -9,7 +9,7 @@
 #include <cstring>
 #include <signal.h>
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     // https://infra.spec.whatwg.org/#ascii-upper-alpha
     static auto is_ascii_upper_alpha(char c) -> bool

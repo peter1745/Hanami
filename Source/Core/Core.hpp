@@ -8,7 +8,7 @@
 #include <optional>
 #include <string_view>
 
-namespace hanami {
+namespace Hanami {
 
     inline auto equals_case_insensitive(std::string_view a, std::string_view b) -> bool
     {

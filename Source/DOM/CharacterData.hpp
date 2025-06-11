@@ -2,11 +2,11 @@
 
 #include "Node.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
     class TreeBuilder;
 }
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     // https://dom.spec.whatwg.org/#characterdata
     class CharacterData : public Node
@@ -17,7 +17,7 @@ namespace hanami::dom {
     protected:
         std::string m_data;
 
-        friend html::TreeBuilder;
+        friend HTML::TreeBuilder;
     };
 
 }

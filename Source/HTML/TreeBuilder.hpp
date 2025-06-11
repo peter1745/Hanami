@@ -6,9 +6,9 @@
 #include "DOM/Document.hpp"
 #include "DOM/Element.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
-    using namespace hanami::dom;
+    using namespace Hanami::DOM;
 
     // https://dom.spec.whatwg.org/#concept-element-interface
     enum class ElementInterface
@@ -55,7 +55,7 @@ namespace hanami::html {
         void process_token(const Token& token);
         void print_dom();
 
-        auto document() const noexcept -> dom::Document*
+        auto document() const noexcept -> DOM::Document*
         {
             return m_document.get();
         }

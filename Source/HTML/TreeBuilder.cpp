@@ -14,9 +14,9 @@
 #define TODO(...) raise(SIGTRAP)
 //#define TODO(...)
 
-using namespace hanami::dom;
+using namespace Hanami::DOM;
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     TreeBuilder::TreeBuilder(Tokenizer* tokenizer) noexcept
         : m_tokenizer(tokenizer), m_document(std::make_unique<Document>())

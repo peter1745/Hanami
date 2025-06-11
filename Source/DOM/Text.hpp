@@ -2,7 +2,7 @@
 
 #include "CharacterData.hpp"
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     // https://dom.spec.whatwg.org/#interface-text
     class Text : public CharacterData

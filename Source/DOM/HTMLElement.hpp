@@ -2,7 +2,7 @@
 
 #include "Element.hpp"
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     // https://html.spec.whatwg.org/multipage/dom.html#htmlelement
     class HTMLElement : public Element

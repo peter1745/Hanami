@@ -3,7 +3,7 @@
 #include "Tokenizer.hpp"
 #include "TreeBuilder.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     class Parser
     {
@@ -12,7 +12,7 @@ namespace hanami::html {
 
         void parse(std::string_view html);
 
-        auto document() const -> dom::Document*;
+        auto document() const -> DOM::Document*;
 
     private:
         [[nodiscard]]

@@ -2,13 +2,13 @@
 
 #include "Core/Core.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     class TreeBuilder;
 
 }
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     using namespace std::literals;
 
@@ -128,7 +128,7 @@ namespace hanami::dom {
         Node* m_previous_sibling = nullptr;
         Node* m_next_sibling = nullptr;
 
-        friend html::TreeBuilder;
+        friend HTML::TreeBuilder;
     };
 
 }

@@ -13,7 +13,7 @@
 
 #include <cairo/cairo.h>
 
-using namespace hanami;
+using namespace Hanami;
 
 int main()
 {
@@ -40,16 +40,16 @@ int main()
         ss << stream.rdbuf();
     }
 
-    auto parser = html::Parser{};
+    auto parser = HTML::Parser{};
     parser.parse(ss.str());
 
     auto* document = parser.document();
 
-    std::vector<dom::Text*> text_elements;
+    std::vector<DOM::Text*> text_elements;
 
-    [&text_elements](this auto&& self, html::Node* node) -> void
+    [&text_elements](this auto&& self, HTML::Node* node) -> void
     {
-        if (auto* text = dynamic_cast<html::Text*>(node))
+        if (auto* text = dynamic_cast<HTML::Text*>(node))
         {
             text_elements.emplace_back(text);
         }
@@ -60,7 +60,7 @@ int main()
         }
     }(document->body());
 
-    auto compute_text_for_rendering = [](const html::Text* text) -> std::string
+    auto compute_text_for_rendering = [](const HTML::Text* text) -> std::string
     {
         std::string result;
 

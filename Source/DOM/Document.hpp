@@ -3,13 +3,13 @@
 #include "Node.hpp"
 #include "Element.hpp"
 
-namespace hanami::html {
+namespace Hanami::HTML {
 
     class TreeBuilder;
 
 }
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     // https://dom.spec.whatwg.org/#interface-documenttype
     class DocumentType : public Node
@@ -54,7 +54,7 @@ namespace hanami::dom {
         Element* m_body = nullptr;
         bool m_scripting = false;
 
-        friend html::TreeBuilder;
+        friend HTML::TreeBuilder;
         friend class Node;
     };
 

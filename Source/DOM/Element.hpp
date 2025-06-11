@@ -2,7 +2,7 @@
 
 #include "Node.hpp"
 
-namespace hanami::dom {
+namespace Hanami::DOM {
 
     // https://dom.spec.whatwg.org/#interface-element
     class Element : public Node
