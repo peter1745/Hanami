@@ -11,8 +11,11 @@
 
 #include "kori/core.hpp"
 
-#define TODO(...) raise(SIGTRAP)
-//#define TODO(...)
+#define NOT_IMPLEMENTED(...)
+
+#if !defined(NOT_IMPLEMENTED)
+    #define NOT_IMPLEMENTED(...) raise(SIGTRAP)
+#endif
 
 using namespace Hanami::DOM;
 
@@ -239,7 +242,7 @@ namespace Hanami::HTML {
                             if (t->name == "html")
                             {
                                 // Process the token using the rules for the "in body" insertion mode.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -322,7 +325,7 @@ namespace Hanami::HTML {
                             if (t->name == "html")
                             {
                                 // Process the token using the rules for the "in body" insertion mode.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -331,7 +334,7 @@ namespace Hanami::HTML {
                             {
                                 // Insert an HTML element for the token. Immediately pop the current node off the stack of open elements.
                                 // Acknowledge the token's self-closing flag, if it is set.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -344,18 +347,10 @@ namespace Hanami::HTML {
                                 m_open_elements.pop_back();
 
                                 // Acknowledge the token's self-closing flag, if it is set.
-                                std::visit(kori::VariantOverloadSet {
-                                   [](const EndTagToken& tag)
-                                   {
-                                       if (tag.self_closing)
-                                       {
-                                           // parse_error(ErrorType::ParseErrorWithTrailingSolidus);
-                                       }
-                                   },
-                                   [](auto&&)
-                                   {
-                                   }
-                               }, token);
+                                if (t->self_closing)
+                                {
+                                    // TODO(Peter)
+                                }
 
                                 // If the active speculative HTML parser is null, then:
                                 //if (speculative_parser_null)
@@ -391,7 +386,7 @@ namespace Hanami::HTML {
                             {
                                 // TODO(Peter):
                                 // Follow the generic raw text element parsing algorithm.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -401,20 +396,20 @@ namespace Hanami::HTML {
                                 // TODO(Peter):
                                 // Insert an HTML element for the token.
                                 // Switch the insertion mode to "in head noscript".
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
                             if (t->name == "script")
                             {
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
                             // whose tag name is "template"
                             if (t->name == "template")
                             {
-                                TODO();
+                                NOT_IMPLEMENTED();
                             }
                         }
 
@@ -451,7 +446,7 @@ namespace Hanami::HTML {
                             // whose tag name is "template"
                             if (t->name == "template")
                             {
-                                TODO();
+                                NOT_IMPLEMENTED();
                             }
                         }
 
@@ -536,7 +531,7 @@ namespace Hanami::HTML {
                                 // Execute the script element the script.
                                 // Decrement the parser's script nesting level by one. If the parser's script nesting level is zero (which it always should be at this point), then set the parser pause flag to false.
                                 // Let the insertion point be undefined again.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -588,7 +583,7 @@ namespace Hanami::HTML {
                             if (start_tag->name == "html")
                             {
                                 // Process the token using the rules for the "in body" insertion mode.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -611,7 +606,7 @@ namespace Hanami::HTML {
                             {
                                 // Insert an HTML element for the token.
                                 // Switch the insertion mode to "in frameset".
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -629,7 +624,7 @@ namespace Hanami::HTML {
                                 // Process the token using the rules for the "in head" insertion mode.
                                 // Remove the node pointed to by the head element pointer from the stack of open elements. (It might not be the current node at this point.)
                                 // The head element pointer cannot be null at this point.
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
                         }
@@ -641,7 +636,7 @@ namespace Hanami::HTML {
                             // Process the token using the rules for the "in head" insertion mode.
                             // An end tag whose tag name is one of: "body", "html", "br"
                             // Act as described in the "anything else" entry below.
-                            TODO();
+                            NOT_IMPLEMENTED();
                         }
 
                         // A start tag whose tag name is "head"
@@ -656,7 +651,7 @@ namespace Hanami::HTML {
                         //     Insert an HTML element for a "body" start tag token with no attributes.
                         //     Switch the insertion mode to "in body".
                         //     Reprocess the current token.
-                        TODO();
+                        NOT_IMPLEMENTED();
                         break;
                     }
                     case TreeInsertionMode::InBody:
@@ -698,7 +693,7 @@ namespace Hanami::HTML {
                         if (token_is<CharacterToken>(token))
                         {
                             // Insert a comment.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -706,7 +701,7 @@ namespace Hanami::HTML {
                         if (token_is<DOCTYPEToken>(token))
                         {
                             // Parse error. Ignore the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -716,7 +711,7 @@ namespace Hanami::HTML {
                             // Parse error.
                             // If there is a template element on the stack of open elements, then ignore the token.
                             // Otherwise, for each attribute on the token, check to see if the attribute is already present on the top element of the stack of open elements. If it is not, add the attribute and its corresponding value to that element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -728,7 +723,7 @@ namespace Hanami::HTML {
                         )
                         {
                             // Process the token using the rules for the "in head" insertion mode.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -738,7 +733,7 @@ namespace Hanami::HTML {
                             // Parse error.
                             // If the stack of open elements has only one node on it, if the second element on the stack of open elements is not a body element, or if there is a template element on the stack of open elements, then ignore the token. (fragment case or there is a template element on the stack)
                             // Otherwise, set the frameset-ok flag to "not ok"; then, for each attribute on the token, check to see if the attribute is already present on the body element (the second element) on the stack of open elements, and if it is not, add the attribute and its corresponding value to that element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -753,7 +748,7 @@ namespace Hanami::HTML {
                             // Pop all the nodes from the bottom of the stack of open elements, from the current node up to, but not including, the root html element.
                             // Insert an HTML element for the token.
                             // Switch the insertion mode to "in frameset".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -764,7 +759,7 @@ namespace Hanami::HTML {
                             // Otherwise, follow these steps:
                             // If there is a node in the stack of open elements that is not either a dd element, a dt element, an li element, an optgroup element, an option element, a p element, an rb element, an rp element, an rt element, an rtc element, a tbody element, a td element, a tfoot element, a th element, a thead element, a tr element, the body element, or the html element, then this is a parse error.
                             // Stop parsing.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -787,7 +782,7 @@ namespace Hanami::HTML {
                             // Otherwise, if there is a node in the stack of open elements that is not either a dd element, a dt element, an li element, an optgroup element, an option element, a p element, an rb element, an rp element, an rt element, an rtc element, a tbody element, a td element, a tfoot element, a th element, a thead element, a tr element, the body element, or the html element, then this is a parse error.
                             // Switch the insertion mode to "after body".
                             // Reprocess the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -799,7 +794,7 @@ namespace Hanami::HTML {
                             {
                                 if (element->local_name == "p")
                                 {
-                                    TODO();
+                                    NOT_IMPLEMENTED();
                                 }
                             }
 
@@ -814,7 +809,7 @@ namespace Hanami::HTML {
                             // If the stack of open elements has a p element in button scope, then close a p element.
                             // If the current node is an HTML element whose tag name is one of "h1", "h2", "h3", "h4", "h5", or "h6", then this is a parse error; pop the current node off the stack of open elements.
                             // Insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -825,7 +820,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token.
                             // If the next token is a U+000A LINE FEED (LF) character token, then ignore that token and move on to the next one. (Newlines at the start of pre blocks are ignored as an authoring convenience.)
                             // Set the frameset-ok flag to "not ok".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -836,7 +831,7 @@ namespace Hanami::HTML {
                             // Otherwise:
                             // If the stack of open elements has a p element in button scope, then close a p element.
                             // Insert an HTML element for the token, and, if there is no template element on the stack of open elements, set the form element pointer to point to the element created.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -855,7 +850,7 @@ namespace Hanami::HTML {
                             // Otherwise, set node to the previous entry in the stack of open elements and return to the step labeled loop.
                             // Done: If the stack of open elements has a p element in button scope, then close a p element.
                             // Finally, insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -879,7 +874,7 @@ namespace Hanami::HTML {
                             // Otherwise, set node to the previous entry in the stack of open elements and return to the step labeled loop.
                             // Done: If the stack of open elements has a p element in button scope, then close a p element.
                             // Finally, insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -890,7 +885,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token.
                             // Switch the tokenizer to the PLAINTEXT state.
                             // Once a start tag with the tag name "plaintext" has been seen, all remaining tokens will be character tokens (and a final end-of-file token) because there is no way to switch the tokenizer out of the PLAINTEXT state. However, as the tree builder remains in its existing insertion mode, it might reconstruct the active formatting elements while processing those character tokens. This means that the parser can insert other elements into the plaintext element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -904,7 +899,7 @@ namespace Hanami::HTML {
                             // Reconstruct the active formatting elements, if any.
                             // Insert an HTML element for the token.
                             // Set the frameset-ok flag to "not ok".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -922,7 +917,7 @@ namespace Hanami::HTML {
                             // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
                             if (dynamic_cast<HTMLElement*>(current_node()) && current_node()->local_name == token_tag_name(token))
                             {
-                                TODO();
+                                NOT_IMPLEMENTED();
                                 break;
                             }
 
@@ -955,7 +950,7 @@ namespace Hanami::HTML {
                             // Generate implied end tags.
                             // If the current node is not a form element, then this is a parse error.
                             // Pop elements from the stack of open elements until a form element has been popped from the stack.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -964,7 +959,7 @@ namespace Hanami::HTML {
                         {
                             // If the stack of open elements does not have a p element in button scope, then this is a parse error; insert an HTML element for a "p" start tag token with no attributes.
                             // Close a p element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -976,7 +971,7 @@ namespace Hanami::HTML {
                             // Generate implied end tags, except for li elements.
                             // If the current node is not an li element, then this is a parse error.
                             // Pop elements from the stack of open elements until an li element has been popped from the stack.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -988,7 +983,7 @@ namespace Hanami::HTML {
                             // Generate implied end tags, except for HTML elements with the same tag name as the token.
                             // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
                             // Pop elements from the stack of open elements until an HTML element with the same tag name as the token has been popped from the stack.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1000,7 +995,7 @@ namespace Hanami::HTML {
                             // Generate implied end tags.
                             // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
                             // Pop elements from the stack of open elements until an HTML element whose tag name is one of "h1", "h2", "h3", "h4", "h5", or "h6" has been popped from the stack.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1017,7 +1012,7 @@ namespace Hanami::HTML {
                             // In the non-conforming stream <a href="a">a<table><a href="b">b</table>x, the first a element would be closed upon seeing the second one, and the "x" character would be inside a link to "b", not to "a". This is despite the fact that the outer a element is not in table scope (meaning that a regular </a> end tag at the start of the table wouldn't close the outer a element). The result is that the two a elements are indirectly nested inside each other — non-conforming markup will often result in non-conforming DOMs when parsed.
                             // Reconstruct the active formatting elements, if any.
                             // Insert an HTML element for the token. Push onto the list of active formatting elements that element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1026,7 +1021,7 @@ namespace Hanami::HTML {
                         {
                             // Reconstruct the active formatting elements, if any.
                             // Insert an HTML element for the token. Push onto the list of active formatting elements that element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1043,7 +1038,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token.
                             // Insert a marker at the end of the list of active formatting elements.
                             // Set the frameset-ok flag to "not ok".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1056,7 +1051,7 @@ namespace Hanami::HTML {
                             // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
                             // Pop elements from the stack of open elements until an HTML element with the same tag name as the token has been popped from the stack.
                             // Clear the list of active formatting elements up to the last marker.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1067,7 +1062,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token.
                             // Set the frameset-ok flag to "not ok".
                             // Switch the insertion mode to "in table".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1075,7 +1070,7 @@ namespace Hanami::HTML {
                         if (token_is_end_tag(token, "br"))
                         {
                             // Parse error. Drop the attributes from the token, and act as described in the next entry; i.e. act as if this was a "br" start tag token with no attributes, rather than the end tag token that it actually is.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1123,7 +1118,7 @@ namespace Hanami::HTML {
                         {
                             // Insert an HTML element for the token. Immediately pop the current node off the stack of open elements.
                             // Acknowledge the token's self-closing flag, if it is set.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1134,7 +1129,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token. Immediately pop the current node off the stack of open elements.
                             // Acknowledge the token's self-closing flag, if it is set.
                             // Set the frameset-ok flag to "not ok".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1142,7 +1137,7 @@ namespace Hanami::HTML {
                         if (token_is_start_tag(token, "image"))
                         {
                             // Parse error. Change the token's tag name to "img" and reprocess it. (Don't ask.)
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1156,7 +1151,7 @@ namespace Hanami::HTML {
                             // Set the original insertion mode to the current insertion mode.
                             // Set the frameset-ok flag to "not ok".
                             // Switch the insertion mode to "text".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1167,7 +1162,7 @@ namespace Hanami::HTML {
                             // Reconstruct the active formatting elements, if any.
                             // Set the frameset-ok flag to "not ok".
                             // Follow the generic raw text element parsing algorithm.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1176,7 +1171,7 @@ namespace Hanami::HTML {
                         {
                             // Set the frameset-ok flag to "not ok".
                             // Follow the generic raw text element parsing algorithm.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1188,7 +1183,7 @@ namespace Hanami::HTML {
                         )
                         {
                             // Follow the generic raw text element parsing algorithm.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1199,7 +1194,7 @@ namespace Hanami::HTML {
                             // Insert an HTML element for the token.
                             // Set the frameset-ok flag to "not ok".
                             // If the insertion mode is one of "in table", "in caption", "in table body", "in row", or "in cell", then switch the insertion mode to "in select in table". Otherwise, switch the insertion mode to "in select".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1209,7 +1204,7 @@ namespace Hanami::HTML {
                             // If the current node is an option element, then pop the current node off the stack of open elements.
                             // Reconstruct the active formatting elements, if any.
                             // Insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1218,7 +1213,7 @@ namespace Hanami::HTML {
                         {
                             // If the stack of open elements has a ruby element in scope, then generate implied end tags. If the current node is not now a ruby element, this is a parse error.
                             // Insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1227,7 +1222,7 @@ namespace Hanami::HTML {
                         {
                             // If the stack of open elements has a ruby element in scope, then generate implied end tags, except for rtc elements. If the current node is not now a rtc element or a ruby element, this is a parse error.
                             // Insert an HTML element for the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1239,7 +1234,7 @@ namespace Hanami::HTML {
                             // Adjust foreign attributes for the token. (This fixes the use of namespaced attributes, in particular XLink.)
                             // Insert a foreign element for the token, with MathML namespace and false.
                             // If the token has its self-closing flag set, pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1251,7 +1246,7 @@ namespace Hanami::HTML {
                             // Adjust foreign attributes for the token. (This fixes the use of namespaced attributes, in particular XLink in SVG.)
                             // Insert a foreign element for the token, with SVG namespace and false.
                             // If the token has its self-closing flag set, pop the current node off the stack of open elements and acknowledge the token's self-closing flag.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1259,7 +1254,7 @@ namespace Hanami::HTML {
                         if (token_is_start_tag_any_of(token, { "caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr" }))
                         {
                             // Parse error. Ignore the token.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1269,7 +1264,7 @@ namespace Hanami::HTML {
                             // Reconstruct the active formatting elements, if any.
                             // Insert an HTML element for the token.
                             // This element will be an ordinary element. With one exception: if the scripting flag is disabled, it can also be a noscript element.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1285,7 +1280,7 @@ namespace Hanami::HTML {
                             // Otherwise, if node is in the special category, then this is a parse error; ignore the token, and return.
                             // Set node to the previous entry in the stack of open elements.
                             // Return to the step labeled loop.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1305,7 +1300,7 @@ namespace Hanami::HTML {
                         if (token_is<CommentToken>(token))
                         {
                             // Insert a comment as the last child of the first element in the stack of open elements (the html element).
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1320,7 +1315,7 @@ namespace Hanami::HTML {
                         if (token_is_start_tag(token, "html"))
                         {
                             // Process the token using the rules for the "in body" insertion mode.
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1329,7 +1324,7 @@ namespace Hanami::HTML {
                         {
                             // If the parser was created as part of the HTML fragment parsing algorithm, this is a parse error; ignore the token. (fragment case)
                             // Otherwise, switch the insertion mode to "after after body".
-                            TODO();
+                            NOT_IMPLEMENTED();
                             break;
                         }
 
@@ -1349,7 +1344,7 @@ namespace Hanami::HTML {
                     }
                     default:
                     {
-                        TODO();
+                        NOT_IMPLEMENTED();
                         break;
                     }
                 }
@@ -1633,11 +1628,11 @@ namespace Hanami::HTML {
     auto TreeBuilder::create_element_for_token(const Token& token, std::string_view element_namespace, Node* intended_parent) -> Element*
     {
         const TagToken* tag_token = nullptr;
-        std::visit(kori::VariantOverloadSet{
-                       [&](const StartTagToken& tag) { tag_token = &tag; },
-                       [&](const EndTagToken& tag) { tag_token = &tag; },
-                       [](auto&&) { raise(SIGTRAP); }
-                   }, token);
+        std::visit(kori::VariantOverloadSet {
+            [&](const StartTagToken& tag) { tag_token = &tag; },
+            [&](const EndTagToken& tag) { tag_token = &tag; },
+            [](auto&&) { HANAMI_TRAP(); }
+        }, token);
 
         // TODO(Peter): Speculative parser
         // If the active speculative HTML parser is not null, then return the result of creating a speculative mock element given namespace, token's tag name, and token's attributes.
@@ -1667,7 +1662,7 @@ namespace Hanami::HTML {
             // Increment document's throw-on-dynamic-markup-insertion counter.
             // If the JavaScript execution context stack is empty, then perform a microtask checkpoint.
             // Push a new element queue onto document's relevant agent's custom element reactions stack.
-            TODO();
+            NOT_IMPLEMENTED();
         }
 
         // Let element be the result of creating an element given document, localName, namespace, null, is, willExecuteScript, and registry.
@@ -1682,7 +1677,7 @@ namespace Hanami::HTML {
         // If willExecuteScript is true:
         if (will_execute_script)
         {
-            TODO();
+            NOT_IMPLEMENTED();
             // Let queue be the result of popping from document's relevant agent's custom element reactions stack. (This will be the same element queue as was pushed above.)
             // Invoke custom element reactions in queue.
             // Decrement document's throw-on-dynamic-markup-insertion counter.
@@ -1777,7 +1772,7 @@ namespace Hanami::HTML {
             bool local_name_valid_custom_element_name = false;
             if (element_namespace == html_namespace && (local_name_valid_custom_element_name || is.has_value()))
             {
-                TODO();
+                NOT_IMPLEMENTED();
                 // result->custom_element_state = "undefined";
             }
         }

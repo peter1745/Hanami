@@ -31,3 +31,9 @@ target_link_libraries(hanami
             mwl
             kori
             cairo)
+
+if (HANAMI_PLATFORM_LINUX)
+    target_compile_definitions(hanami PUBLIC HANAMI_PLATFORM_LINUX)
+elseif(HANAMI_PLATFORM_WINDOWS)
+    target_compile_definitions(hanami PUBLIC HANAMI_PLATFORM_WINDOWS)
+endif()

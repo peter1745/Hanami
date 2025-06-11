@@ -8,6 +8,13 @@
 #include <optional>
 #include <string_view>
 
+#if defined(HANAMI_PLATFORM_LINUX)
+    #include <sys/signal.h>
+    #define HANAMI_TRAP() raise(SIGTRAP)
+#elif defined(HANAMI_PLATFORM_LINUX)
+    #define HANAMI_TRAP() __debugbreak()
+#endif
+
 namespace Hanami {
 
     inline auto equals_case_insensitive(std::string_view a, std::string_view b) -> bool

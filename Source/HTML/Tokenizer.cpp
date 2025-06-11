@@ -9,6 +9,12 @@
 #include <cstring>
 #include <signal.h>
 
+//#define NOT_IMPLEMENTED(...)
+
+#if !defined(NOT_IMPLEMENTED)
+    #define NOT_IMPLEMENTED(...) raise(SIGTRAP)
+#endif
+
 namespace Hanami::HTML {
 
     // https://infra.spec.whatwg.org/#ascii-upper-alpha
@@ -99,7 +105,7 @@ namespace Hanami::HTML {
     {
         if (!m_emit_token)
         {
-            raise(SIGTRAP);
+            HANAMI_TRAP();
             return;
         }
 
@@ -380,7 +386,7 @@ namespace Hanami::HTML {
                     // Otherwise, this is a cdata-in-html-content parse error.
                     // Create a comment token whose data is the "[CDATA[" string.
                     // Switch to the bogus comment state.
-                    raise(SIGTRAP);
+                    NOT_IMPLEMENTED();
                     break;
                 }
 
@@ -650,7 +656,7 @@ namespace Hanami::HTML {
             {
                 // TODO(Peter): Parse the JSON file mentioned here: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
                 //              in the future to get a list of all valid named character references.
-                raise(SIGTRAP);
+                NOT_IMPLEMENTED();
 
                 // Consume the maximum number of characters possible, where the consumed characters are one of the identifiers in the first column of the named character references table.
                 while (true)
@@ -739,7 +745,7 @@ namespace Hanami::HTML {
                         {
                             token.name += static_cast<char>(std::tolower(c));
                         },
-                        [](auto&&){ raise(SIGTRAP); }
+                        [](auto&&){ HANAMI_TRAP(); }
                     }, m_current_token);
                     break;
                 }
@@ -760,7 +766,7 @@ namespace Hanami::HTML {
                         {
                             token.name += "�";
                         },
-                        [](auto&&){ raise(SIGTRAP); }
+                        [](auto&&){ HANAMI_TRAP(); }
                     }, m_current_token);
                     break;
                 }
@@ -776,7 +782,7 @@ namespace Hanami::HTML {
                     {
                         token.name += static_cast<char>(std::tolower(c));
                     },
-                    [](auto&&){ raise(SIGTRAP); }
+                    [](auto&&){ HANAMI_TRAP(); }
                 }, m_current_token);
                 break;
             }
@@ -809,7 +815,7 @@ namespace Hanami::HTML {
                         {
                             token.self_closing = true;
                         },
-                        [](auto&&){ raise(SIGTRAP); }
+                        [](auto&&){ HANAMI_TRAP(); }
                     }, m_current_token);
 
                     // Switch to the data state.
@@ -875,7 +881,7 @@ namespace Hanami::HTML {
                         {
                             m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
                         },
-                        [](auto&&){ raise(SIGTRAP); }
+                        [](auto&&){ HANAMI_TRAP(); }
                     }, m_current_token);
 
                     // Switch to the attribute name state.
@@ -900,7 +906,7 @@ namespace Hanami::HTML {
                     {
                         m_current_attribute = &token.attributes.emplace_back(std::move(attribute));
                     },
-                    [](auto&&){ raise(SIGTRAP); }
+                    [](auto&&){ HANAMI_TRAP(); }
                 }, m_current_token);
 
                 // Reconsume in the attribute name state.
@@ -1554,7 +1560,7 @@ namespace Hanami::HTML {
                     std::visit(kori::VariantOverloadSet {
                         [&](StartTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
                         [&](EndTagToken& token) { token.name += static_cast<char>(std::tolower(c)); },
-                        [](auto&&) { raise(SIGTRAP); }
+                        [](auto&&) { HANAMI_TRAP(); }
                     }, m_current_token);
 
                     // Append the current input character to the temporary buffer.
@@ -1569,7 +1575,7 @@ namespace Hanami::HTML {
                     std::visit(kori::VariantOverloadSet {
                         [&](StartTagToken& token) { token.name += c; },
                         [&](EndTagToken& token) { token.name += c; },
-                        [](auto&&) { raise(SIGTRAP); }
+                        [](auto&&) { HANAMI_TRAP(); }
                     }, m_current_token);
 
                     // Append the current input character to the temporary buffer.
@@ -1596,7 +1602,7 @@ namespace Hanami::HTML {
             }
             default:
             {
-                raise(SIGTRAP);
+                NOT_IMPLEMENTED();
                 //MWL_VERIFY(false, "Unimplemented state");
                 break;
             }
