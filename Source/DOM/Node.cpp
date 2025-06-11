@@ -1,6 +1,6 @@
 #include "Node.hpp"
 #include "Element.hpp"
-#include "document.hpp"
+#include "Document.hpp"
 
 namespace Hanami::DOM {
 

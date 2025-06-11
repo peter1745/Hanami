@@ -29,7 +29,7 @@ int main()
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("Tests/Parsing/Basic.html");
+        std::ifstream stream("Tests/Parsing/Large.html");
 
         if (!stream)
         {
