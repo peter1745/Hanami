@@ -26,10 +26,25 @@ int main()
     KoriDefer { win.destroy(); };
     win.set_close_callback([&] { running = false; });
 
+    double x_scroll = 0.0;
+    double y_scroll = 0.0;
+
+    win.set_mouse_scroll_callback([&](const mwl::MouseScrollEvent& event)
+    {
+        if (event.axis() == mwl::ScrollAxis::Horizontal)
+        {
+            x_scroll -= event.value();
+        }
+        else
+        {
+            y_scroll -= event.value();
+        }
+    });
+
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("Tests/Parsing/Basic.html");
+        std::ifstream stream("Tests/Parsing/Large.html");
 
         if (!stream)
         {
@@ -96,8 +111,8 @@ int main()
         // Draw texts
         cairo_select_font_face(cairo_ctx, "serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
 
-        double x = 10.0;
-        double y = 16.0;
+        double x = x_scroll;
+        double y = y_scroll;
         cairo_set_font_size(cairo_ctx, 16.0);
 
         for (const auto* text : text_elements)
