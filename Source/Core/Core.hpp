@@ -1,11 +1,15 @@
 #pragma once
 
-#include <cctype>
-#include <vector>
+#include <span>
 #include <string>
+#include <vector>
+#include <cctype>
 #include <memory>
+#include <variant>
 #include <cstdint>
 #include <optional>
+#include <algorithm>
+#include <functional>
 #include <string_view>
 #include <unordered_map>
 

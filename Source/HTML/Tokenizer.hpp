@@ -1,16 +1,9 @@
 #pragma once
 
-#include <algorithm>
-#include <span>
-#include <string>
-#include <vector>
-#include <variant>
-#include <cstdint>
-#include <functional>
-#include <optional>
-#include <string_view>
-
+#include "Core/Core.hpp"
 #include "Kori/Core.hpp"
+
+#include <simdjson.h>
 
 namespace Hanami::HTML {
 
@@ -135,6 +128,8 @@ namespace Hanami::HTML {
     class Tokenizer
     {
     public:
+        Tokenizer();
+
         using EmitTokenFunc = std::function<void(const Token&)>;
         void start(std::string_view input, EmitTokenFunc func);
 
@@ -180,6 +175,7 @@ namespace Hanami::HTML {
             RCDATALessThanSign,
             RCDATAEndTagOpen,
             RCDATAEndTagName,
+            AmbiguousAmpersand,
         };
 
         void set_state(State state) noexcept
@@ -198,6 +194,9 @@ namespace Hanami::HTML {
         auto reached_eof() const noexcept -> bool;
 
         [[nodiscard]]
+        auto next_characters_equals(char character, bool case_insensitive = false) const noexcept -> bool;
+
+        [[nodiscard]]
         auto next_characters_equals(std::string_view chars, bool case_insensitive = false) const noexcept -> bool;
 
         enum class ProcessResult { Continue, Abort };
@@ -206,6 +205,10 @@ namespace Hanami::HTML {
         auto current_is_appropriate_end_tag() const noexcept -> bool;
 
     private:
+        simdjson::ondemand::parser m_json_parser;
+        simdjson::padded_string m_named_characters_str;
+        simdjson::ondemand::document m_named_characters_lookup;
+
         EmitTokenFunc m_emit_token;
         std::string_view m_input_stream;
 

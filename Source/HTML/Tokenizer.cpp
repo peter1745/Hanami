@@ -60,6 +60,13 @@ namespace Hanami::HTML {
         }, t);
     }
 
+    Tokenizer::Tokenizer()
+    {
+        // List obtained from: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
+        m_named_characters_str = simdjson::padded_string::load("NamedCharacterReferences.json");
+        m_named_characters_lookup = m_json_parser.iterate(m_named_characters_str);
+    }
+
     void Tokenizer::start(std::string_view input, EmitTokenFunc func)
     {
         m_emit_token = std::move(func);
@@ -128,6 +135,21 @@ namespace Hanami::HTML {
     auto Tokenizer::reached_eof() const noexcept -> bool
     {
         return m_current_char_idx >= m_input_stream.length();
+    }
+
+    auto Tokenizer::next_characters_equals(char character, bool case_insensitive) const noexcept -> bool
+    {
+        if (m_current_char_idx + 1 >= m_input_stream.length())
+        {
+            return false;
+        }
+
+        if (!case_insensitive)
+        {
+            return m_input_stream[m_current_char_idx + 1] == character;
+        }
+
+        return std::tolower(m_input_stream[m_current_char_idx + 1]) == std::tolower(character);
     }
 
     auto Tokenizer::next_characters_equals(std::string_view chars, bool case_insensitive) const noexcept -> bool
@@ -630,36 +652,127 @@ namespace Hanami::HTML {
             }
             case State::NamedCharacterReference:
             {
-                // TODO(Peter): Parse the JSON file mentioned here: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
-                //              in the future to get a list of all valid named character references.
-                NOT_IMPLEMENTED();
+                // NOTE(Peter): This is the longest named character reference, and according to this link:
+                //              https://github.com/whatwg/html/blob/main/FAQ.md#html-should-add-more-named-character-references
+                //              that will never change. Therefore it's safe for us to use this as a maximum length when consuming
+                //              characters below.
+                static constexpr auto LongestNamedCharacterReference = "&CounterClockwiseContourIntegral;"sv;
+
+                std::string longest_match;
+                size_t chars_consumed_since_longest_match = 0;
 
                 // Consume the maximum number of characters possible, where the consumed characters are one of the identifiers in the first column of the named character references table.
                 while (true)
                 {
                     const char c = consume_next_character();
 
-                    if (!is_ascii_alpha(c))
+                    ++chars_consumed_since_longest_match;
+
+                    if (c == '\0')
                     {
-                        // Matched as much as possible.
-                        // NOTE(Peter): Should we backtrack one?
                         break;
                     }
 
                     // Append each character to the temporary buffer when it's consumed.
                     m_temporary_buffer += c;
+
+                    if (m_temporary_buffer.length() > LongestNamedCharacterReference.length())
+                    {
+                        // Impossible to have a valid match at this point
+                        break;
+                    }
+
+                    const auto character_reference = m_named_characters_lookup[m_temporary_buffer];
+
+                    if (character_reference.error() == simdjson::SUCCESS)
+                    {
+                        longest_match = m_temporary_buffer;
+                        chars_consumed_since_longest_match = 0;
+                    }
+
+                    if (c == ';')
+                    {
+                        break;
+                    }
                 }
 
-                m_temporary_buffer += ";";
+                // We might have overconsumed a bunch of characters to make sure
+                // that we found the longest possible named reference match. This
+                // means we have to backtrack to right after the match.
+                m_current_char_idx -= chars_consumed_since_longest_match;
+
+                // Grab the longest character reference we found
+                auto character_reference = m_named_characters_lookup[longest_match];
+
+                auto consumed_part_of_attribute = [&] -> bool
+                {
+                    return m_return_state == State::AttributeValueDoubleQuoted ||
+                           m_return_state == State::AttributeValueSingleQuoted ||
+                           m_return_state == State::AttributeValueUnquoted;
+                };
+
+                // https://html.spec.whatwg.org/multipage/parsing.html#flush-code-points-consumed-as-a-character-reference
+                auto flush_code_points = [&]
+                {
+                    if (consumed_part_of_attribute())
+                    {
+                        m_current_attribute->value += m_temporary_buffer;
+                    }
+                    else
+                    {
+                        for (auto c : m_temporary_buffer)
+                        {
+                            emit_token(CharacterToken{ c });
+                        }
+                    }
+                };
 
                 // If there is a match
-                // If the character reference was consumed as part of an attribute, and the last character matched is not a U+003B SEMICOLON character (;), and the next input character is either a U+003D EQUALS SIGN character (=) or an ASCII alphanumeric, then, for historical reasons, flush code points consumed as a character reference and switch to the return state.
-                // Otherwise:
-                // If the last character matched is not a U+003B SEMICOLON character (;), then this is a missing-semicolon-after-character-reference parse error.
-                // Set the temporary buffer to the empty string. Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
-                // Flush code points consumed as a character reference. Switch to the return state.
+                if (character_reference.error() == simdjson::SUCCESS)
+                {
+                    if (
+                        // If the character reference was consumed as part of an attribute,
+                        consumed_part_of_attribute()
+                        // and the last character matched is not a U+003B SEMICOLON character (;),
+                        && longest_match.back() != ';'
+                        // and the next input character is either a U+003D EQUALS SIGN character (=) or an ASCII alphanumeric,
+                        && (next_characters_equals('=') || is_ascii_alpha_numeric(m_input_stream[m_current_char_idx + 1]))
+                    )
+                    {
+                        // then, for historical reasons,
+                        // flush code points consumed as a character reference and switch to the return state.
+                        flush_code_points();
+                        m_state = m_return_state;
+                        break;
+                    }
+
+                    // Otherwise:
+                    // If the last character matched is not a U+003B SEMICOLON character (;), then this is a missing-semicolon-after-character-reference parse error.
+                    if (longest_match.back() != ';')
+                    {
+                        // parse_error(ErrorType::MissingSemicolonAfterCharacterReference);
+                    }
+
+                    // Set the temporary buffer to the empty string.
+                    m_temporary_buffer.clear();
+
+                    // Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
+                    m_temporary_buffer += character_reference["characters"].get_string().value();
+
+                    // Flush code points consumed as a character reference.
+                    flush_code_points();
+
+                    // Switch to the return state.
+                    m_state = m_return_state;
+                    break;
+                }
+
                 // Otherwise
-                // Flush code points consumed as a character reference. Switch to the ambiguous ampersand state.
+                // Flush code points consumed as a character reference.
+                flush_code_points();
+
+                // Switch to the ambiguous ampersand state.
+                m_state = State::AmbiguousAmpersand;
                 break;
             }
             case State::TagName:

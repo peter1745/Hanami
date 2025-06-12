@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(PkgConfig)
 pkg_check_modules(cairo REQUIRED cairo)
+pkg_check_modules(simdjson REQUIRED simdjson)
 
 add_executable(hanami)
 
@@ -30,10 +31,14 @@ target_link_libraries(hanami
         PRIVATE
             mwl
             kori
-            cairo)
+            cairo
+            simdjson)
 
 if (HANAMI_PLATFORM_LINUX)
     target_compile_definitions(hanami PUBLIC HANAMI_PLATFORM_LINUX)
 elseif(HANAMI_PLATFORM_WINDOWS)
     target_compile_definitions(hanami PUBLIC HANAMI_PLATFORM_WINDOWS)
 endif()
+
+# Download the official list of named character references
+file(DOWNLOAD https://html.spec.whatwg.org/entities.json ${CMAKE_SOURCE_DIR}/NamedCharacterReferences.json)
