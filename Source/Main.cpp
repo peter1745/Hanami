@@ -33,10 +33,12 @@ int main(int argc, char* argv[])
         if (event.axis() == mwl::ScrollAxis::Horizontal)
         {
             x_scroll -= event.value();
+            x_scroll = std::min(x_scroll, 0.0);
         }
         else
         {
             y_scroll -= event.value();
+            y_scroll = std::min(y_scroll, 0.0);
         }
     });
 
@@ -137,6 +139,7 @@ int main(int argc, char* argv[])
             cairo_move_to(cairo_ctx, x, y);
             cairo_set_source_rgb(cairo_ctx, 0, 0, 0);
             cairo_show_text(cairo_ctx, str.data());
+
             y += font_size;
         }
 

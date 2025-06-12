@@ -9,6 +9,8 @@
 #include <cstring>
 #include <signal.h>
 
+#include "Kori/Utf8String.hpp"
+
 //#define NOT_IMPLEMENTED(...)
 
 #if !defined(NOT_IMPLEMENTED)
@@ -92,8 +94,8 @@ namespace Hanami::HTML {
             return;
         }
 
-        std::println("Tokenizer: Emitting token:");
-        print_token(token);
+        //std::println("Tokenizer: Emitting token:");
+        //print_token(token);
 
         if (const auto* start_tag = std::get_if<StartTagToken>(&token); start_tag)
         {
@@ -178,6 +180,30 @@ namespace Hanami::HTML {
         }
 
         return end_tag->name == m_last_emitted_start_token_name;
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#charref-in-attribute
+    auto Tokenizer::consumed_part_of_attribute() const noexcept -> bool
+    {
+        return m_return_state == State::AttributeValueDoubleQuoted ||
+               m_return_state == State::AttributeValueSingleQuoted ||
+               m_return_state == State::AttributeValueUnquoted;
+    }
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#flush-code-points-consumed-as-a-character-reference
+    void Tokenizer::flush_consumed_code_points()
+    {
+        if (consumed_part_of_attribute())
+        {
+            m_current_attribute->value += m_temporary_buffer;
+        }
+        else
+        {
+            for (auto c : m_temporary_buffer)
+            {
+                emit_token(CharacterToken{ c });
+            }
+        }
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#tokenization
@@ -641,10 +667,7 @@ namespace Hanami::HTML {
 
                 // Anything else
                 // Flush code points consumed as a character reference.
-                for (auto character : m_temporary_buffer)
-                {
-                    emit_token(CharacterToken{ character });
-                }
+                flush_consumed_code_points();
 
                 // Reconsume in the return state.
                 reconsume_in(m_return_state);
@@ -704,28 +727,6 @@ namespace Hanami::HTML {
                 // Grab the longest character reference we found
                 auto character_reference = m_named_characters_lookup[longest_match];
 
-                auto consumed_part_of_attribute = [&] -> bool
-                {
-                    return m_return_state == State::AttributeValueDoubleQuoted ||
-                           m_return_state == State::AttributeValueSingleQuoted ||
-                           m_return_state == State::AttributeValueUnquoted;
-                };
-
-                // https://html.spec.whatwg.org/multipage/parsing.html#flush-code-points-consumed-as-a-character-reference
-                auto flush_code_points = [&]
-                {
-                    if (consumed_part_of_attribute())
-                    {
-                        m_current_attribute->value += m_temporary_buffer;
-                    }
-                    else
-                    {
-                        for (auto c : m_temporary_buffer)
-                        {
-                            emit_token(CharacterToken{ c });
-                        }
-                    }
-                };
 
                 // If there is a match
                 if (character_reference.error() == simdjson::SUCCESS)
@@ -741,7 +742,7 @@ namespace Hanami::HTML {
                     {
                         // then, for historical reasons,
                         // flush code points consumed as a character reference and switch to the return state.
-                        flush_code_points();
+                        flush_consumed_code_points();
                         m_state = m_return_state;
                         break;
                     }
@@ -760,7 +761,7 @@ namespace Hanami::HTML {
                     m_temporary_buffer += character_reference["characters"].get_string().value();
 
                     // Flush code points consumed as a character reference.
-                    flush_code_points();
+                    flush_consumed_code_points();
 
                     // Switch to the return state.
                     m_state = m_return_state;
@@ -769,10 +770,266 @@ namespace Hanami::HTML {
 
                 // Otherwise
                 // Flush code points consumed as a character reference.
-                flush_code_points();
+                flush_consumed_code_points();
 
                 // Switch to the ambiguous ampersand state.
                 m_state = State::AmbiguousAmpersand;
+                break;
+            }
+            case State::NumericCharacterReference:
+            {
+                // Set the character reference code to zero (0).
+                m_character_reference_code = 0;
+
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // U+0078 LATIN SMALL LETTER X
+                // U+0058 LATIN CAPITAL LETTER X
+                if (c == 'x' || c == 'X')
+                {
+                    // Append the current input character to the temporary buffer.
+                    m_temporary_buffer += c;
+
+                    // Switch to the hexadecimal character reference start state.
+                    m_state = State::HexadecimalCharacterReferenceStart;
+                    break;
+                }
+
+                // Anything else
+                //     Reconsume in the decimal character reference start state.
+                reconsume_in(State::DecimalCharacterReferenceStart);
+                break;
+            }
+            case State::HexadecimalCharacterReferenceStart:
+            {
+                NOT_IMPLEMENTED();
+                break;
+            }
+            case State::DecimalCharacterReferenceStart:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // ASCII digit
+                if (is_ascii_digit(c))
+                {
+                    // Reconsume in the decimal character reference state.
+                    reconsume_in(State::DecimalCharacterReference);
+                    break;
+                }
+
+                // Anything else
+                // This is an absence-of-digits-in-numeric-character-reference parse error.
+                // parse_error(ErrorType::AbsenceOfDigitsInNumericCharacterReference);
+
+                // Flush code points consumed as a character reference.
+                flush_consumed_code_points();
+
+                // Reconsume in the return state.
+                reconsume_in(m_return_state);
+                break;
+            }
+            case State::DecimalCharacterReference:
+            {
+                // Consume the next input character:
+                const char c = consume_next_character();
+
+                // ASCII digit
+                if (is_ascii_digit(c))
+                {
+                    // Multiply the character reference code by 10.
+                    m_character_reference_code *= 10;
+
+                    // Add a numeric version of the current input character (subtract 0x0030 from the character's code point) to the character reference code.
+                    m_character_reference_code += static_cast<uint8_t>(c) - 0x0030;
+                }
+
+                // U+003B SEMICOLON (;)
+                if (c == ';')
+                {
+                    // Switch to the numeric character reference end state.
+                    m_state = State::NumericCharacterReferenceEnd;
+                    break;
+                }
+
+                // Anything else
+                // This is a missing-semicolon-after-character-reference parse error.
+                // parse_error(ErrorType::MissingSemicolonAfterCharacterReference);
+
+                // Reconsume in the numeric character reference end state.
+                reconsume_in(State::NumericCharacterReferenceEnd);
+                break;
+            }
+            case State::NumericCharacterReferenceEnd:
+            {
+                // Check the character reference code:
+                // If the number is 0x00
+                if (m_character_reference_code == 0x00)
+                {
+                    // then this is a null-character-reference parse error.
+                    // parse_error(ErrorType::NullCharacterReference);
+
+                    // Set the character reference code to 0xFFFD.
+                    m_character_reference_code = 0xFFFD;
+                }
+                // If the number is greater than 0x10FFFF
+                else if (m_character_reference_code > 0x10FFF)
+                {
+                    // then this is a character-reference-outside-unicode-range parse error.
+                    // parse_error(ErrorType::CharacterReferenceOutsideUnicodeRange);
+
+                    // Set the character reference code to 0xFFFD.
+                    m_character_reference_code = 0xFFFD;
+                }
+                // If the number is a surrogate
+                else if (is_unicode_surrogate(m_character_reference_code))
+                {
+                    // then this is a surrogate-character-reference parse error.
+                    // parse_error(ErrorType::SurrogateCharacterReference);
+
+                    // Set the character reference code to 0xFFFD.
+                    m_character_reference_code = 0xFFFD;
+                }
+                // If the number is a noncharacter
+                else if (is_unicode_noncharacter(m_character_reference_code))
+                {
+                    // then this is a noncharacter-character-reference parse error.
+                    // parse_error(ErrorType::NonCharacterCharacterReference);
+                }
+                // If the number is 0x0D, or a control that's not ASCII whitespace,
+                else if (m_character_reference_code == 0x0D || is_unicode_control(m_character_reference_code))
+                {
+                    // then this is a control-character-reference parse error.
+                    // parse_error(ErrorType::ControlCharacterReference);
+
+                    // If the number is one of the numbers in the first column of the following table, then find the row with that number in the first column, and set the character reference code to the number in the second column of that row.
+                    if (m_character_reference_code == 0x80)
+                    {
+                        m_character_reference_code = 0x20AC;
+                    }
+                    else if (m_character_reference_code == 0x82)
+                    {
+                        m_character_reference_code = 0x201A;
+                    }
+                    else if (m_character_reference_code == 0x83)
+                    {
+                        m_character_reference_code = 0x0192;
+                    }
+                    else if (m_character_reference_code == 0x84)
+                    {
+                        m_character_reference_code = 0x201E;
+                    }
+                    else if (m_character_reference_code == 0x85)
+                    {
+                        m_character_reference_code = 0x2026;
+                    }
+                    else if (m_character_reference_code == 0x86)
+                    {
+                        m_character_reference_code = 0x2020;
+                    }
+                    else if (m_character_reference_code == 0x87)
+                    {
+                        m_character_reference_code = 0x2021;
+                    }
+                    else if (m_character_reference_code == 0x88)
+                    {
+                        m_character_reference_code = 0x02C6;
+                    }
+                    else if (m_character_reference_code == 0x89)
+                    {
+                        m_character_reference_code = 0x2030;
+                    }
+                    else if (m_character_reference_code == 0x8A)
+                    {
+                        m_character_reference_code = 0x0160;
+                    }
+                    else if (m_character_reference_code == 0x8B)
+                    {
+                        m_character_reference_code = 0x2039;
+                    }
+                    else if (m_character_reference_code == 0x8C)
+                    {
+                        m_character_reference_code = 0x0152;
+                    }
+                    else if (m_character_reference_code == 0x8E)
+                    {
+                        m_character_reference_code = 0x017D;
+                    }
+                    else if (m_character_reference_code == 0x91)
+                    {
+                        m_character_reference_code = 0x2018;
+                    }
+                    else if (m_character_reference_code == 0x92)
+                    {
+                        m_character_reference_code = 0x2019;
+                    }
+                    else if (m_character_reference_code == 0x93)
+                    {
+                        m_character_reference_code = 0x201C;
+                    }
+                    else if (m_character_reference_code == 0x94)
+                    {
+                        m_character_reference_code = 0x201D;
+                    }
+                    else if (m_character_reference_code == 0x95)
+                    {
+                        m_character_reference_code = 0x2022;
+                    }
+                    else if (m_character_reference_code == 0x96)
+                    {
+                        m_character_reference_code = 0x2013;
+                    }
+                    else if (m_character_reference_code == 0x97)
+                    {
+                        m_character_reference_code = 0x2014;
+                    }
+                    else if (m_character_reference_code == 0x98)
+                    {
+                        m_character_reference_code = 0x02DC;
+                    }
+                    else if (m_character_reference_code == 0x99)
+                    {
+                        m_character_reference_code = 0x2122;
+                    }
+                    else if (m_character_reference_code == 0x9A)
+                    {
+                        m_character_reference_code = 0x0161;
+                    }
+                    else if (m_character_reference_code == 0x9B)
+                    {
+                        m_character_reference_code = 0x203A;
+                    }
+                    else if (m_character_reference_code == 0x9C)
+                    {
+                        m_character_reference_code = 0x0153;
+                    }
+                    else if (m_character_reference_code == 0x9E)
+                    {
+                        m_character_reference_code = 0x017E;
+                    }
+                    else if (m_character_reference_code == 0x9F)
+                    {
+                        m_character_reference_code = 0x0178;
+                    }
+                }
+
+                // Set the temporary buffer to the empty string.
+                m_temporary_buffer = "";
+
+                // Append a code point equal to the character reference code to the temporary buffer.
+                // FIXME(Peter): Hacky way around using codepoint-based strings
+                auto codepoint = Kori::Codepoint::from_utf32(m_character_reference_code);
+                for (uint8_t i = 0; i < codepoint.used_bytes; ++i)
+                {
+                    m_temporary_buffer += static_cast<char>(codepoint.bytes[i]);
+                }
+
+                // Flush code points consumed as a character reference.
+                flush_consumed_code_points();
+
+                // Switch to the return state.
+                m_state = m_return_state;
                 break;
             }
             case State::TagName:

@@ -1492,7 +1492,7 @@ namespace Hanami::HTML {
         // Pop all the nodes off the stack of open elements.
         // Update the current document readiness to "complete".
 
-        print_dom();
+        //print_dom();
     }
 
     auto Parser::current_node() const noexcept -> Element*

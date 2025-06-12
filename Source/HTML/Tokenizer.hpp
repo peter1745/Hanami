@@ -176,6 +176,10 @@ namespace Hanami::HTML {
             RCDATAEndTagOpen,
             RCDATAEndTagName,
             AmbiguousAmpersand,
+            HexadecimalCharacterReferenceStart,
+            DecimalCharacterReferenceStart,
+            DecimalCharacterReference,
+            NumericCharacterReferenceEnd,
         };
 
         void set_state(State state) noexcept
@@ -204,10 +208,14 @@ namespace Hanami::HTML {
 
         auto current_is_appropriate_end_tag() const noexcept -> bool;
 
+        auto consumed_part_of_attribute() const noexcept -> bool;
+        void flush_consumed_code_points();
+
     private:
         simdjson::ondemand::parser m_json_parser;
         simdjson::padded_string m_named_characters_str;
         simdjson::ondemand::document m_named_characters_lookup;
+        uint32_t m_character_reference_code;
 
         EmitTokenFunc m_emit_token;
         std::string_view m_input_stream;
