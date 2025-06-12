@@ -5,7 +5,7 @@
 
 namespace Hanami::HTML {
 
-    class TreeBuilder;
+    class Parser;
 
 }
 
@@ -54,7 +54,7 @@ namespace Hanami::DOM {
         Element* m_body = nullptr;
         bool m_scripting = false;
 
-        friend HTML::TreeBuilder;
+        friend HTML::Parser;
         friend class Node;
     };
 

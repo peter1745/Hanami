@@ -4,7 +4,7 @@
 
 namespace Hanami::HTML {
 
-    class TreeBuilder;
+    class Parser;
 
 }
 
@@ -131,7 +131,7 @@ namespace Hanami::DOM {
         Node* m_previous_sibling = nullptr;
         Node* m_next_sibling = nullptr;
 
-        friend HTML::TreeBuilder;
+        friend HTML::Parser;
     };
 
 }

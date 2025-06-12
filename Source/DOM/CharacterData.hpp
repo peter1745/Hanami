@@ -3,7 +3,7 @@
 #include "Node.hpp"
 
 namespace Hanami::HTML {
-    class TreeBuilder;
+    class Parser;
 }
 
 namespace Hanami::DOM {
@@ -17,7 +17,7 @@ namespace Hanami::DOM {
     protected:
         std::string m_data;
 
-        friend HTML::TreeBuilder;
+        friend HTML::Parser;
     };
 
 }

@@ -20,7 +20,6 @@ target_sources(hanami
 
         # HTML
         HTML/Tokenizer.cpp
-        HTML/TreeBuilder.cpp
         HTML/Parser.cpp)
 
 target_include_directories(hanami

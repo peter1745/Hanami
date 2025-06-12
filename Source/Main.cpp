@@ -1,7 +1,6 @@
 #include "DOM/Text.hpp"
 #include "HTML/Parser.hpp"
 #include "HTML/Tokenizer.hpp"
-#include "HTML/TreeBuilder.hpp"
 
 #include <print>
 #include <fstream>
@@ -90,6 +89,7 @@ int main()
         return result;
     };
 
+
     while (running)
     {
         mwl_state.dispatch_events();
@@ -113,7 +113,10 @@ int main()
 
         double x = x_scroll;
         double y = y_scroll;
-        cairo_set_font_size(cairo_ctx, 16.0);
+
+        constexpr double font_size = 24.0;
+
+        cairo_set_font_size(cairo_ctx, font_size);
 
         for (const auto* text : text_elements)
         {
@@ -127,14 +130,12 @@ int main()
             cairo_move_to(cairo_ctx, x, y);
             cairo_set_source_rgb(cairo_ctx, 0, 0, 0);
             cairo_show_text(cairo_ctx, str.data());
-            y += 16.0;
+            y += font_size;
         }
 
         cairo_surface_finish(surface);
         cairo_destroy(cairo_ctx);
 
-        // TEMP
-        //buffer.fill(0xFF222222);
         win.present_screen_buffer(buffer);
     }
 
