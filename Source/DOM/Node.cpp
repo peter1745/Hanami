@@ -61,4 +61,10 @@ namespace Hanami::DOM {
         return insert_before(node, nullptr);
     }
 
+    // https://html.spec.whatwg.org/multipage/infrastructure.html#html-elements
+    auto Node::is_html_element() const noexcept -> bool
+    {
+        return m_type == NodeType::Element && dynamic_cast<const Element*>(this)->is_in_namespace(html_namespace);
+    }
+
 }

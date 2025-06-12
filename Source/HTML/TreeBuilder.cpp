@@ -915,9 +915,8 @@ namespace Hanami::HTML {
                             }
 
                             // If the current node is not an HTML element with the same tag name as that of the token, then this is a parse error.
-                            if (dynamic_cast<HTMLElement*>(current_node()) && current_node()->local_name == token_tag_name(token))
+                            if (current_node()->is_html_element() && current_node()->local_name != token_tag_name(token))
                             {
-                                NOT_IMPLEMENTED();
                                 break;
                             }
 

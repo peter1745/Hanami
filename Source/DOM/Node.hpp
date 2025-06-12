@@ -107,7 +107,10 @@ namespace Hanami::DOM {
         auto append_child(Node* node) -> Node*;
 
         [[nodiscard]]
-        bool is_element() const noexcept { return m_type == NodeType::Element; }
+        auto is_element() const noexcept -> bool { return m_type == NodeType::Element; }
+
+        [[nodiscard]]
+        auto is_html_element() const noexcept -> bool;
 
         [[nodiscard]]
         auto children() const noexcept -> const NodeList& { return m_child_nodes; }
