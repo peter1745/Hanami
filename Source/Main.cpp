@@ -14,7 +14,7 @@
 
 using namespace Hanami;
 
-int main()
+int main(int argc, char* argv[])
 {
     auto mwl_state = mwl::State::create({ .client_api = mwl::ClientAPI::Wayland });
     KoriDefer { mwl_state.destroy(); };
@@ -40,10 +40,17 @@ int main()
         }
     });
 
+    auto path = "Tests/Parsing/Basic.html"sv;
+
+    if (argc > 1)
+    {
+        path = argv[1];
+    }
+
     // HTML Tokenize
     std::stringstream ss;
     {
-        std::ifstream stream("Tests/Parsing/Large.html");
+        std::ifstream stream(path.data());
 
         if (!stream)
         {

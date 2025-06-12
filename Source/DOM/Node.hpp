@@ -63,30 +63,11 @@ namespace Hanami::DOM {
 
     struct NodeListLocation
     {
-        NodeList* list;
+        Node* owner;
         NodeList::iterator iter;
 
-        auto operator--(int) const -> NodeListLocation
-        {
-            auto copy = *this;
-
-            if (copy.iter != copy.list->begin())
-            {
-                --copy.iter;
-            }
-
-            return copy;
-        }
-
-        auto operator*() const -> Node*
-        {
-            if (iter < list->begin() || iter >= list->end())
-            {
-                return nullptr;
-            }
-
-            return *iter;
-        }
+        auto operator--(int) const -> NodeListLocation;
+        auto operator*() const -> Node*;
     };
 
     class Document;
@@ -131,6 +112,7 @@ namespace Hanami::DOM {
         Node* m_previous_sibling = nullptr;
         Node* m_next_sibling = nullptr;
 
+        friend NodeListLocation;
         friend HTML::Parser;
     };
 

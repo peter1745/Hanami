@@ -4,6 +4,28 @@
 
 namespace Hanami::DOM {
 
+    auto NodeListLocation::operator--(int) const -> NodeListLocation
+    {
+        auto copy = *this;
+
+        if (copy.iter != copy.owner->m_child_nodes.begin())
+        {
+            --copy.iter;
+        }
+
+        return copy;
+    }
+
+    auto NodeListLocation::operator*() const -> Node*
+    {
+        if (iter < owner->m_child_nodes.begin() || iter >= owner->m_child_nodes.end())
+        {
+            return nullptr;
+        }
+
+        return *iter;
+    }
+
     auto Node::first_child() const noexcept -> Node*
     {
         if (m_child_nodes.empty())

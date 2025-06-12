@@ -103,7 +103,7 @@ namespace Hanami::HTML {
                         if (auto* c = std::get_if<CommentToken>(&token); c)
                         {
                             // Insert a comment as the last child of the Document object.
-                            insert_comment(c->data, NodeListLocation{ &m_document->m_child_nodes, m_document->m_child_nodes.end() });
+                            insert_comment(c->data, NodeListLocation{ m_document.get(), m_document->m_child_nodes.end() });
                             break;
                         }
 
@@ -173,7 +173,7 @@ namespace Hanami::HTML {
                         if (auto* c = std::get_if<CommentToken>(&token); c)
                         {
                             // Insert a comment as the last child of the Document object.
-                            insert_comment(c->data, NodeListLocation{ &m_document->m_child_nodes, m_document->m_child_nodes.end() });
+                            insert_comment(c->data, NodeListLocation{ m_document.get(), m_document->m_child_nodes.end() });
                             break;
                         }
 
@@ -1530,6 +1530,12 @@ namespace Hanami::HTML {
         //    Otherwise, let target be the current node.
         auto* target = override_target.value_or(current_node());
 
+        if (target == nullptr)
+        {
+            // Null node, return invalid location
+            return {};
+        }
+
         // 2. Determine the adjusted insertion location using the first matching steps from the following list:
         //    If foster parenting is enabled and target is a table, tbody, tfoot, thead, or tr element
         //      Run these substeps:
@@ -1543,7 +1549,7 @@ namespace Hanami::HTML {
 
         // Otherwise
         //  Let adjusted insertion location be inside target, after its last child (if any).
-        auto adjusted_insertion_location = NodeListLocation{ &target->m_child_nodes, target->m_child_nodes.end() };
+        auto adjusted_insertion_location = NodeListLocation{ target, target->m_child_nodes.end() };
 
         // 3. If the adjusted insertion location is inside a template element,
         // let it instead be inside the template element's template contents, after its last child (if any).
@@ -1592,10 +1598,9 @@ namespace Hanami::HTML {
         // Create a Comment node whose data attribute is set to data
         // and whose node document is the same as that of the node in which the adjusted insertion location finds itself.
         auto comment = new Comment(data);
-        comment->m_document = current_node()->m_document;
 
         // Insert the newly created node at the adjusted insertion location.
-        current_node()->insert_before(comment, *adjusted_insertion_location);
+        adjusted_insertion_location.owner->insert_before(comment, *adjusted_insertion_location);
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#insert-an-element-at-the-adjusted-insertion-location
