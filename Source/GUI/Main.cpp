@@ -71,6 +71,11 @@ int main(int argc, char* argv[])
 
     [&text_elements](this auto&& self, HTML::Node* node) -> void
     {
+        if (node == nullptr)
+        {
+            return;
+        }
+
         if (auto* text = dynamic_cast<HTML::Text*>(node))
         {
             text_elements.emplace_back(text);

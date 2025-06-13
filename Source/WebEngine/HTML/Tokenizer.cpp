@@ -121,6 +121,7 @@ namespace Hanami::HTML {
         if (m_current_char_idx + 1 > m_input_stream.length())
         {
             // EOF, unable to consume more characters.
+            m_reached_eof = true;
             return '\0';
         }
 
@@ -135,7 +136,7 @@ namespace Hanami::HTML {
 
     auto Tokenizer::reached_eof() const noexcept -> bool
     {
-        return m_current_char_idx >= m_input_stream.length();
+        return m_reached_eof;
     }
 
     auto Tokenizer::next_characters_equals(char character, bool case_insensitive) const noexcept -> bool

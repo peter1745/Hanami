@@ -228,6 +228,8 @@ namespace Hanami::HTML {
         std::string m_temporary_buffer;
 
         TagAttribute* m_current_attribute = nullptr;
+
+        bool m_reached_eof = false;
     };
 
 }

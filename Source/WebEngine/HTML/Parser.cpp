@@ -302,7 +302,7 @@ namespace Hanami::HTML {
 
                         // Anything else
                         // Insert an HTML element for a "head" start tag token with no attributes.
-                        auto* head = insert_html_element(token);
+                        auto* head = insert_html_element(StartTagToken{ "head" });
 
                         // Set the head element pointer to the newly created head element.
                         m_document->m_head = head;
