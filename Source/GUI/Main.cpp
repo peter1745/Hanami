@@ -1,6 +1,6 @@
-#include "DOM/Text.hpp"
-#include "HTML/Parser.hpp"
-#include "HTML/Tokenizer.hpp"
+#include "WebEngine/DOM/Text.hpp"
+#include "WebEngine/HTML/Parser.hpp"
+#include "WebEngine/HTML/Tokenizer.hpp"
 
 #include <print>
 #include <fstream>
@@ -33,16 +33,14 @@ int main(int argc, char* argv[])
         if (event.axis() == mwl::ScrollAxis::Horizontal)
         {
             x_scroll -= event.value();
-            x_scroll = std::min(x_scroll, 0.0);
         }
         else
         {
             y_scroll -= event.value();
-            y_scroll = std::min(y_scroll, 0.0);
         }
     });
 
-    auto path = "Tests/Parsing/Basic.html"sv;
+    auto path = "Tests/Parsing/comment-before-html-tag.html"sv;
 
     if (argc > 1)
     {
@@ -63,10 +61,11 @@ int main(int argc, char* argv[])
         ss << stream.rdbuf();
     }
 
-    auto parser = HTML::Parser{};
-    parser.parse(ss.str());
+    DOM::Document* document;
 
-    auto* document = parser.document();
+    {
+        document = HTML::Parser{}.parse(ss.str());
+    }
 
     std::vector<DOM::Text*> text_elements;
 
@@ -97,7 +96,6 @@ int main(int argc, char* argv[])
 
         return result;
     };
-
 
     while (running)
     {
@@ -136,7 +134,7 @@ int main(int argc, char* argv[])
                 continue;
             }
 
-            cairo_move_to(cairo_ctx, x, y);
+            cairo_move_to(cairo_ctx, x, y + font_size);
             cairo_set_source_rgb(cairo_ctx, 0, 0, 0);
             cairo_show_text(cairo_ctx, str.data());
 

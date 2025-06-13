@@ -1,10 +1,10 @@
 #include "Parser.hpp"
 
-#include "DOM/Text.hpp"
-#include "DOM/Comment.hpp"
-#include "DOM/Document.hpp"
-#include "DOM/HTMLElement.hpp"
-#include "DOM/CharacterData.hpp"
+#include "WebEngine/DOM/Text.hpp"
+#include "WebEngine/DOM/Comment.hpp"
+#include "WebEngine/DOM/Document.hpp"
+#include "WebEngine/DOM/HTMLElement.hpp"
+#include "WebEngine/DOM/CharacterData.hpp"
 
 #include "Kori/Core.hpp"
 
@@ -28,7 +28,7 @@ namespace Hanami::HTML {
     {
     }
 
-    void Parser::parse(std::string_view html)
+    auto Parser::parse(std::string_view html) -> Document*
     {
         m_input_stream = normalize_input_stream(html);
 
@@ -36,11 +36,8 @@ namespace Hanami::HTML {
         {
             process_token(token);
         });
-    }
 
-    auto Parser::document() const -> Document*
-    {
-        return m_document.get();
+        return m_document.release();
     }
 
     // https://infra.spec.whatwg.org/#normalize-newlines
@@ -1395,57 +1392,6 @@ namespace Hanami::HTML {
             // An SVG desc element
             // An SVG title element
         } while (reprocess);
-    }
-
-    void Parser::print_dom()
-    {
-        static int32_t num_indents = -1;
-        static bool exclude_empty_cdata = false;
-
-        auto print_node = [&](this auto&& self, Node* node) -> void
-        {
-            ++num_indents;
-            KoriDefer { --num_indents; };
-
-            auto indents = std::string{};
-            for (int32_t i = 0; i < num_indents; i++)
-                indents += '\t';
-
-            if (const auto* cdata = dynamic_cast<CharacterData*>(node))
-            {
-                if ((cdata->m_data == " " || cdata->m_data == "\n" || cdata->m_data == "\t" || cdata->m_data == "\f") && exclude_empty_cdata && node->m_child_nodes.empty())
-                {
-                    return;
-                }
-            }
-
-            std::println("{}- {}:", indents, node_type_str(node->m_type));
-
-            indents += '\t';
-
-            if (const auto* elem = dynamic_cast<Element*>(node))
-            {
-                std::println("{}Namespace URI: {}", indents, elem->namespace_uri.value_or(""));
-                std::println("{}Namespace Prefix: {}", indents, elem->namespace_prefix.value_or(""));
-                std::println("{}Local Name: {}", indents, elem->local_name);
-            }
-
-            if (const auto* cdata = dynamic_cast<CharacterData*>(node))
-            {
-                std::println("{}Data: {}", indents, cdata->m_data);
-            }
-
-            if (!node->m_child_nodes.empty())
-            {
-                std::println("{}Children:", indents);
-                for (auto* child : node->m_child_nodes)
-                {
-                    self(child);
-                }
-            }
-        };
-
-        print_node(m_document.get());
     }
 
     // https://html.spec.whatwg.org/multipage/parsing.html#stop-parsing

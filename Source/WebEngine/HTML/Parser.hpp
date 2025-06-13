@@ -2,8 +2,8 @@
 
 #include "Tokenizer.hpp"
 
-#include "DOM/Document.hpp"
-#include "DOM/Element.hpp"
+#include "WebEngine/DOM/Document.hpp"
+#include "WebEngine/DOM/Element.hpp"
 
 namespace Hanami::HTML {
 
@@ -48,10 +48,7 @@ namespace Hanami::HTML {
     public:
         Parser() noexcept;
 
-        void parse(std::string_view html);
-        void print_dom();
-
-        auto document() const -> Document*;
+        auto parse(std::string_view html) -> Document*;
 
     private:
         // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction

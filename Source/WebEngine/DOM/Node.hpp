@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Core.hpp"
+#include "WebEngine/Core/Core.hpp"
 
 namespace Hanami::HTML {
 
@@ -95,6 +95,9 @@ namespace Hanami::DOM {
 
         [[nodiscard]]
         auto children() const noexcept -> const NodeList& { return m_child_nodes; }
+
+        [[nodiscard]]
+        auto type() const noexcept -> NodeType { return m_type; }
 
     protected:
         Node(NodeType type) noexcept

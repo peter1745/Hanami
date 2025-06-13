@@ -49,6 +49,8 @@ namespace Hanami::DOM {
         [[nodiscard]]
         auto body() const noexcept -> Element* { return m_body; }
 
+        void print() const noexcept;
+
     private:
         Element* m_head = nullptr;
         Element* m_body = nullptr;
@@ -57,6 +59,5 @@ namespace Hanami::DOM {
         friend HTML::Parser;
         friend class Node;
     };
-
 
 }

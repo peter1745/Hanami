@@ -1,15 +1,17 @@
 #include "Tokenizer.hpp"
-#include "Core/Core.hpp"
+#include "NamedCharacterReferences.hpp"
+
+#include "WebEngine/Core/Core.hpp"
 
 #include <Kori/Core.hpp>
+#include <Kori/Utf8String.hpp>
 
 #include <regex>
 #include <print>
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <signal.h>
-
-#include "Kori/Utf8String.hpp"
 
 //#define NOT_IMPLEMENTED(...)
 
@@ -64,9 +66,6 @@ namespace Hanami::HTML {
 
     Tokenizer::Tokenizer()
     {
-        // List obtained from: https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
-        m_named_characters_str = simdjson::padded_string::load("NamedCharacterReferences.json");
-        m_named_characters_lookup = m_json_parser.iterate(m_named_characters_str);
     }
 
     void Tokenizer::start(std::string_view input, EmitTokenFunc func)
@@ -290,7 +289,7 @@ namespace Hanami::HTML {
                 if (is_ascii_alpha(c)) // ASCII alpha
                 {
                     // Create a new start tag token, set its tag name to the empty string.
-                    m_current_token = StartTagToken{ "" };
+                    m_current_token = StartTagToken{};
 
                     // Reconsume in the tag name state.
                     reconsume_in(State::TagName);
@@ -343,7 +342,7 @@ namespace Hanami::HTML {
                 if (is_ascii_alpha(c))
                 {
                     // Create a new end tag token, set its tag name to the empty string.
-                    m_current_token = EndTagToken { "" };
+                    m_current_token = EndTagToken{};
 
                     // Reconsume in the tag name state.
                     reconsume_in(State::TagName);
@@ -705,9 +704,7 @@ namespace Hanami::HTML {
                         break;
                     }
 
-                    const auto character_reference = m_named_characters_lookup[m_temporary_buffer];
-
-                    if (character_reference.error() == simdjson::SUCCESS)
+                    if (named_character_references.contains(m_temporary_buffer))
                     {
                         longest_match = m_temporary_buffer;
                         chars_consumed_since_longest_match = 0;
@@ -724,12 +721,8 @@ namespace Hanami::HTML {
                 // means we have to backtrack to right after the match.
                 m_current_char_idx -= chars_consumed_since_longest_match;
 
-                // Grab the longest character reference we found
-                auto character_reference = m_named_characters_lookup[longest_match];
-
-
                 // If there is a match
-                if (character_reference.error() == simdjson::SUCCESS)
+                if (!longest_match.empty())
                 {
                     if (
                         // If the character reference was consumed as part of an attribute,
@@ -758,7 +751,7 @@ namespace Hanami::HTML {
                     m_temporary_buffer.clear();
 
                     // Append one or two characters corresponding to the character reference name (as given by the second column of the named character references table) to the temporary buffer.
-                    m_temporary_buffer += character_reference["characters"].get_string().value();
+                    m_temporary_buffer += named_character_references.at(longest_match);
 
                     // Flush code points consumed as a character reference.
                     flush_consumed_code_points();
@@ -1837,7 +1830,7 @@ namespace Hanami::HTML {
                 if (is_ascii_alpha(c))
                 {
                     // Create a new end tag token, set its tag name to the empty string.
-                    m_current_token = EndTagToken { "" };
+                    m_current_token = EndTagToken{};
 
                     // Reconsume in the RCDATA end tag name state.
                     reconsume_in(State::RCDATAEndTagName);
