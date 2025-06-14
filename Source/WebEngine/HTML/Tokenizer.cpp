@@ -94,7 +94,7 @@ namespace Hanami::HTML {
         }
 
         //std::println("Tokenizer: Emitting token:");
-        //print_token(token);
+        // print_token(token);
 
         if (const auto* start_tag = std::get_if<StartTagToken>(&token); start_tag)
         {

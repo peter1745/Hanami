@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <print>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 #include <unistd.h>
 #include <filesystem>
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include "Tokenizer.hpp"
 
 #include "WebEngine/DOM/Document.hpp"
@@ -49,6 +51,8 @@ namespace Hanami::HTML {
         Parser() noexcept;
 
         auto parse(std::string_view html) -> Document*;
+
+        static auto parse_from_file(const std::filesystem::path& path) -> Document*;
 
     private:
         // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction

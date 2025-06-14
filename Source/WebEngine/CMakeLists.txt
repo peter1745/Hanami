@@ -15,6 +15,7 @@ target_sources(hanami-webengine
     PRIVATE
         # DOM
         DOM/Node.cpp
+        DOM/Document.cpp
 
         # HTML
         HTML/Tokenizer.cpp

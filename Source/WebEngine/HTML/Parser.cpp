@@ -12,6 +12,7 @@
 #include <regex>
 #include <csignal>
 #include <algorithm>
+#include <fstream>
 
 #define NOT_IMPLEMENTED(...)
 
@@ -38,6 +39,22 @@ namespace Hanami::HTML {
         });
 
         return m_document.release();
+    }
+
+    auto Parser::parse_from_file(const std::filesystem::path& path) -> Document*
+    {
+        std::stringstream ss;
+        std::ifstream stream(path);
+
+        if (!stream)
+        {
+            std::println("Failed reading html file. Does the file exist?");
+            return nullptr;
+        }
+
+        ss << stream.rdbuf();
+
+        return Parser{}.parse(ss.str());
     }
 
     // https://infra.spec.whatwg.org/#normalize-newlines
