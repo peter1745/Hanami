@@ -22,6 +22,10 @@ using namespace std::literals;
     #define HANAMI_TRAP() __debugbreak()
 #endif
 
+#if !defined(HANAMI_NOT_IMPLEMENTED)
+    #define HANAMI_NOT_IMPLEMENTED(...) HANAMI_TRAP()
+#endif
+
 namespace Hanami {
 
     // https://infra.spec.whatwg.org/#ascii-upper-alpha

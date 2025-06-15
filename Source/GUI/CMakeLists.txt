@@ -17,5 +17,3 @@ target_link_libraries(hanami-gui
         kori
         cairo
         hanami-webengine)
-
-file(CREATE_LINK ${CMAKE_SOURCE_DIR}/Tests ${CMAKE_CURRENT_BINARY_DIR}/Tests SYMBOLIC)

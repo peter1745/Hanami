@@ -1,6 +1,7 @@
 #include "WebEngine/DOM/Text.hpp"
 #include "WebEngine/HTML/Parser.hpp"
 #include "WebEngine/HTML/Tokenizer.hpp"
+#include "WebEngine/CSS/Tokenizer.hpp"
 
 #include <print>
 #include <fstream>
@@ -40,6 +41,15 @@ int main(int argc, char* argv[])
         }
     });
 
+    // CSS
+    std::stringstream ss;
+    {
+        std::println("{}", std::filesystem::current_path().string());
+        std::ifstream stream("Tests/CSS/Parsing/Basic.css");
+        ss << stream.rdbuf();
+    }
+    CSS::Tokenizer{}.tokenize(ss.str());
+
     auto path = "Tests/Parsing/comment-before-html-tag.html"sv;
 
     if (argc > 1)
@@ -47,25 +57,7 @@ int main(int argc, char* argv[])
         path = argv[1];
     }
 
-    // HTML Tokenize
-    std::stringstream ss;
-    {
-        std::ifstream stream(path.data());
-
-        if (!stream)
-        {
-            std::println("Failed reading html file. Does the file exist?");
-            return -1;
-        }
-
-        ss << stream.rdbuf();
-    }
-
-    DOM::Document* document;
-
-    {
-        document = HTML::Parser{}.parse(ss.str());
-    }
+    auto* document = HTML::Parser::parse_from_file(path);
 
     std::vector<DOM::Text*> text_elements;
 

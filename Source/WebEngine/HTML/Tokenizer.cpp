@@ -13,12 +13,6 @@
 #include <filesystem>
 #include <signal.h>
 
-//#define NOT_IMPLEMENTED(...)
-
-#if !defined(NOT_IMPLEMENTED)
-    #define NOT_IMPLEMENTED(...) raise(SIGTRAP)
-#endif
-
 namespace Hanami::HTML {
 
     void Tokenizer::print_token(const Token& t)
@@ -410,7 +404,7 @@ namespace Hanami::HTML {
                     // Otherwise, this is a cdata-in-html-content parse error.
                     // Create a comment token whose data is the "[CDATA[" string.
                     // Switch to the bogus comment state.
-                    NOT_IMPLEMENTED();
+                    HANAMI_NOT_IMPLEMENTED();
                     break;
                 }
 
@@ -797,7 +791,7 @@ namespace Hanami::HTML {
             }
             case State::HexadecimalCharacterReferenceStart:
             {
-                NOT_IMPLEMENTED();
+                HANAMI_NOT_IMPLEMENTED();
                 break;
             }
             case State::DecimalCharacterReferenceStart:
@@ -1942,7 +1936,7 @@ namespace Hanami::HTML {
             }
             default:
             {
-                NOT_IMPLEMENTED();
+                HANAMI_NOT_IMPLEMENTED();
                 //MWL_VERIFY(false, "Unimplemented state");
                 break;
             }

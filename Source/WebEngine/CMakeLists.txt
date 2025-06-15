@@ -19,7 +19,10 @@ target_sources(hanami-webengine
 
         # HTML
         HTML/Tokenizer.cpp
-        HTML/Parser.cpp)
+        HTML/Parser.cpp
+
+        # CSS
+        CSS/Tokenizer.cpp)
 
 target_include_directories(hanami-webengine PUBLIC ../)
 
