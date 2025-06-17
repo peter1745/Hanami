@@ -7,9 +7,11 @@
 #include <memory>
 #include <variant>
 #include <cstdint>
+#include <fstream>
 #include <optional>
 #include <algorithm>
 #include <functional>
+#include <filesystem>
 #include <string_view>
 #include <unordered_map>
 

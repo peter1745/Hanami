@@ -22,7 +22,9 @@ target_sources(hanami-webengine
         HTML/Parser.cpp
 
         # CSS
-        CSS/Tokenizer.cpp)
+        CSS/Tokenizer.cpp
+        CSS/Parser.cpp
+        CSS/ObjectModel/Rules.cpp)
 
 target_include_directories(hanami-webengine PUBLIC ../)
 
@@ -33,6 +35,7 @@ target_link_libraries(hanami-webengine
 
 if (HANAMI_PLATFORM_LINUX)
     target_compile_definitions(hanami-webengine PUBLIC HANAMI_PLATFORM_LINUX)
+    target_compile_options(hanami-webengine PUBLIC -Wno-unused-function)
 elseif(HANAMI_PLATFORM_WINDOWS)
     target_compile_definitions(hanami-webengine PUBLIC HANAMI_PLATFORM_WINDOWS)
 endif()

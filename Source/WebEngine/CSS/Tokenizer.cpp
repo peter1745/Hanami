@@ -59,7 +59,7 @@ namespace Hanami::CSS {
         return false;
     }
 
-    void Tokenizer::tokenize(std::string_view input)
+    auto Tokenizer::tokenize(std::string_view input) -> std::vector<Token>
     {
         m_input_stream = input;
 
@@ -73,7 +73,9 @@ namespace Hanami::CSS {
             tokens.emplace_back(current_token);
         } while (!std::holds_alternative<EOFToken>(current_token));
 
-        for (const auto& token : tokens)
+        return tokens;
+
+        /*for (const auto& token : tokens)
         {
             std::visit(Kori::VariantOverloadSet {
                 [](IdentToken token) { std::println("IdentToken({})", token.value); },
@@ -102,7 +104,7 @@ namespace Hanami::CSS {
                 [](CloseCurlyBracketToken) { std::println("CloseCurlyBracketToken"); },
                 [](EOFToken) { std::println("EOFToken"); },
             }, token);
-        }
+        }*/
     }
 
     auto Tokenizer::consume_token() -> Token
@@ -111,6 +113,13 @@ namespace Hanami::CSS {
 
         // Consume the next input code point.
         const char c = consume_next_character();
+
+        // EOF
+        if (c == '\0' || m_reached_eof)
+        {
+            // Return an <EOF-token>.
+            return EOFToken{};
+        }
 
         // whitespace
         if (is_css_whitespace(c))
@@ -291,13 +300,6 @@ namespace Hanami::CSS {
 
             // consume an ident-like token, and return it
             return consume_ident_like();
-        }
-
-        // EOF
-        if (c == '\0' || m_reached_eof)
-        {
-            // Return an <EOF-token>.
-            return EOFToken{};
         }
 
         // anything else

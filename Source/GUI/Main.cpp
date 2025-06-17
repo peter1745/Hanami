@@ -1,7 +1,6 @@
 #include "WebEngine/DOM/Text.hpp"
 #include "WebEngine/HTML/Parser.hpp"
-#include "WebEngine/HTML/Tokenizer.hpp"
-#include "WebEngine/CSS/Tokenizer.hpp"
+#include "WebEngine/CSS/Parser.hpp"
 
 #include <print>
 #include <fstream>
@@ -42,13 +41,7 @@ int main(int argc, char* argv[])
     });
 
     // CSS
-    std::stringstream ss;
-    {
-        std::println("{}", std::filesystem::current_path().string());
-        std::ifstream stream("Tests/CSS/Parsing/Basic.css");
-        ss << stream.rdbuf();
-    }
-    CSS::Tokenizer{}.tokenize(ss.str());
+    CSS::Parser::parse_stylesheet_from_file("Tests/CSS/Parsing/Basic.css");
 
     auto path = "Tests/Parsing/comment-before-html-tag.html"sv;
 
