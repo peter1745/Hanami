@@ -21,6 +21,8 @@ namespace Hanami::CSS {
     {
         auto selector = Selector{};
 
+        // FIXME(Peter): Actually account for all preludes
+
         std::visit(Kori::VariantOverloadSet {
             [&](const Token& token)
             {
@@ -76,6 +78,7 @@ namespace Hanami::CSS {
                         std::visit(Kori::VariantOverloadSet {
                             [&](const HashToken& token) { value = token.value; },
                             [&](const NumberToken& token) { value = std::to_string(token.value); },
+                            [&](const DimensionToken& token) { value = std::format("{}{}", token.value, token.unit); },
                             [](auto&&) { HANAMI_NOT_IMPLEMENTED(); }
                         }, value_token);
 
