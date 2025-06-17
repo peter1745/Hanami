@@ -1,4 +1,7 @@
 * {
-    color: #ff0000;
+    color: #0000ff;
 }
 
+div#myid {
+    line-height: 1.4;
+}

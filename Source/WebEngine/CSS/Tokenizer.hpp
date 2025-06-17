@@ -21,8 +21,23 @@ namespace Hanami::CSS {
 
     struct HashToken
     {
+        enum class Type { Unrestricted, ID };
+
+        Type type = Type::Unrestricted;
         std::string value;
     };
+
+    inline auto hash_token_type_str(HashToken::Type type)
+    {
+        switch (type)
+        {
+            case HashToken::Type::Unrestricted: return "Unrestricted";
+            case HashToken::Type::ID: return "ID";
+            default: HANAMI_TRAP();
+        }
+
+        return "Unknown";
+    }
 
     struct StringToken {};
     struct BadStringToken {};
@@ -34,9 +49,29 @@ namespace Hanami::CSS {
         char value;
     };
 
-    struct NumberToken {};
-    struct PercentageToken {};
-    struct DimensionToken {};
+    enum class NumericType
+    {
+        Integer, Number
+    };
+
+    struct NumberToken
+    {
+        NumericType type;
+        double value;
+    };
+
+    struct PercentageToken
+    {
+        double value;
+    };
+
+    struct DimensionToken
+    {
+        NumericType type;
+        double value;
+        std::string unit;
+    };
+
     struct WhitespaceToken {};
     struct CDOToken {};
     struct CDCToken {};
@@ -79,13 +114,28 @@ namespace Hanami::CSS {
         EOFToken
     >;
 
+    using NumericToken = std::variant<NumberToken, PercentageToken, DimensionToken>;
+
+    inline auto unwrap_numeric_token(const NumericToken& token) -> Token
+    {
+        auto result = Token{};
+
+        std::visit(Kori::VariantOverloadSet {
+            [&](const NumberToken& value) { result = value; },
+            [&](const PercentageToken& value) { result = value; },
+            [&](const DimensionToken& value) { result = value; }
+        }, token);
+
+        return result;
+    }
+
     inline void print_token(const Token& token)
     {
         std::visit(Kori::VariantOverloadSet {
             [](const IdentToken& token) { std::println("IdentToken({})", token.value); },
             [](const FunctionToken& token) { std::println("FunctionToken({})", token.value); },
             [](const AtKeywordToken&) { std::println("AtKeywordToken"); },
-            [](const HashToken& token) { std::println("HashToken({})", token.value); },
+            [](const HashToken& token) { std::println("HashToken({}, {})", hash_token_type_str(token.type), token.value); },
             [](const StringToken&) { std::println("StringToken"); },
             [](const BadStringToken&) { std::println("BadStringToken"); },
             [](const URLToken&) { std::println("URLToken"); },
@@ -119,8 +169,12 @@ namespace Hanami::CSS {
     private:
         auto consume_token() -> Token;
         auto consume_ident_like() -> Token;
+        auto consume_numeric_token() -> NumericToken;
         auto consume_ident_sequence() -> std::string;
         auto consume_next_character() noexcept -> char;
+
+        auto consume_number() -> std::pair<NumericType, double>;
+        auto convert_string_to_number(std::string_view repr) -> double;
 
     private:
         std::string m_input_stream;

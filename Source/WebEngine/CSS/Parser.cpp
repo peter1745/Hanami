@@ -50,6 +50,11 @@ namespace Hanami::CSS {
 
     void Parser::parse_stylesheet()
     {
+        for (const auto& token : m_tokens)
+        {
+            print_token(token);
+        }
+
         auto rules =  consume_list_of_rules(true);
 
         std::vector<Rule*> rule_objects;
@@ -64,9 +69,17 @@ namespace Hanami::CSS {
 
                     for (size_t i = 0; i < qr.block.value.size(); i += 4)
                     {
-                        style_declaration.add_property(
-                            std::get<IdentToken>(std::get<Token>(qr.block.value[i].value)).value,
-                            std::get<HashToken>(std::get<Token>(qr.block.value[i + 2].value)).value);
+                        auto ident = std::get<IdentToken>(std::get<Token>(qr.block.value[i].value)).value;
+                        auto value = std::string{};
+                        const auto& value_token = std::get<Token>(qr.block.value[i + 2].value);
+
+                        std::visit(Kori::VariantOverloadSet {
+                            [&](const HashToken& token) { value = token.value; },
+                            [&](const NumberToken& token) { value = std::to_string(token.value); },
+                            [](auto&&) { HANAMI_NOT_IMPLEMENTED(); }
+                        }, value_token);
+
+                        style_declaration.add_property(ident, value);
                     }
 
                     rule_objects.emplace_back(style_rule);
