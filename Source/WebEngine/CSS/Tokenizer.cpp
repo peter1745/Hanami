@@ -191,7 +191,7 @@ namespace Hanami::CSS {
         {
             // If the input stream starts with a number, reconsume the current input code point, consume a numeric token, and return it.
             // Otherwise, return a <delim-token> with its value set to the current input code point.
-            HANAMI_NOT_IMPLEMENTED();
+            return DelimToken{ c };
         }
 
         // U+003A COLON (:)

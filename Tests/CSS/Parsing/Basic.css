@@ -2,7 +2,21 @@
     color: #0000ff;
 }
 
-div#myid {
-    line-height: 1.4;
-    width: 1px;
+div.myclass {
+    color: #0000ff;
 }
+
+div#myid {
+    color: #0000ff;
+}
+
+.someclass {
+    color: #0000ff;
+}
+
+#someid {
+    color: #0000ff;
+}
+
+
+

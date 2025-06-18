@@ -21,31 +21,64 @@ namespace Hanami::CSS {
     {
         auto selector = Selector{};
 
-        // FIXME(Peter): Actually account for all preludes
+        size_t next_part = 0;
 
-        std::visit(Kori::VariantOverloadSet {
-            [&](const Token& token)
+        auto consume_next = [&] -> const Token&
+        {
+            return std::get<Token>(prelude[next_part++].value);
+        };
+
+        SimpleSelector* current_selector = nullptr;
+
+        auto get_or_make_selector = [&]() -> SimpleSelector*
+        {
+            if (!current_selector)
             {
-                std::visit(Kori::VariantOverloadSet {
-                    [&](const IdentToken& ident)
+                auto& part = selector.parts.emplace_back(Combinator::None, SimpleSelector{});
+                current_selector = &part.second;
+            }
+
+            return current_selector;
+        };
+
+        while (next_part < prelude.size())
+        {
+            const auto& value = consume_next();
+
+            if (const auto* ident = std::get_if<IdentToken>(&value))
+            {
+                auto* s = get_or_make_selector();
+                s->tag = ident->value;
+                continue;
+            }
+
+            if (const auto* delim = std::get_if<DelimToken>(&value))
+            {
+                auto* s = get_or_make_selector();
+
+                if (delim->value == '*')
+                {
+                    // Universal selector is an empty selector<
+                    continue;
+                }
+
+                if (delim->value == '.')
+                {
+                    // Consume the next part (should be class name)
+                    if (const auto* ident = std::get_if<IdentToken>(&consume_next()))
                     {
-                        auto& part = selector.parts.emplace_back();
-                        part.first = Combinator::None;
-                        part.second = {
-                            .tag = ident.value
-                        };
-                    },
-                    [&](const DelimToken& delim)
-                    {
-                        auto& part = selector.parts.emplace_back();
-                        part.first = Combinator::None;
-                        part.second = { .tag = { delim.value } };
-                    },
-                    [](auto&&) { HANAMI_NOT_IMPLEMENTED(); }
-                }, token);
-            },
-            [](auto&&) { HANAMI_NOT_IMPLEMENTED(); }
-        }, prelude[0].value);
+                        s->classes.emplace_back(ident->value);
+                        continue;
+                    }
+                }
+            }
+
+            if (const auto* hash = std::get_if<HashToken>(&value))
+            {
+                auto* s = get_or_make_selector();
+                s->id = hash->value;
+            }
+        }
 
         return selector;
     }
