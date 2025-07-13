@@ -6,7 +6,7 @@
 
 namespace Hanami::CSS {
 
-    void Parser::parse_stylesheet_from_file(const std::filesystem::path& path)
+    auto Parser::parse_stylesheet_from_file(const std::filesystem::path& path, ParserSettings settings) -> StyleSheet
     {
         std::stringstream ss;
         std::ifstream stream(path);
@@ -14,7 +14,7 @@ namespace Hanami::CSS {
 
         auto parser = Parser{};
         parser.m_tokens = Tokenizer{}.tokenize(ss.str());
-        parser.parse_stylesheet();
+        return parser.parse_stylesheet(settings);
     }
 
     static auto parse_selector(const std::vector<ComponentValue>& prelude) -> Selector
@@ -83,16 +83,19 @@ namespace Hanami::CSS {
         return selector;
     }
 
-    void Parser::parse_stylesheet()
+    auto Parser::parse_stylesheet(ParserSettings settings) -> StyleSheet
     {
-        for (const auto& token : m_tokens)
+        auto stylesheet = StyleSheet{};
+
+        if (settings.dump_tokens)
         {
-            print_token(token);
+            for (const auto& token : m_tokens)
+            {
+                print_token(token);
+            }
         }
 
         auto rules =  consume_list_of_rules(true);
-
-        std::vector<Rule*> rule_objects;
 
         for (const auto& rule : rules)
         {
@@ -118,35 +121,40 @@ namespace Hanami::CSS {
                         style_declaration.add_property(ident, value);
                     }
 
-                    rule_objects.emplace_back(style_rule);
+                    stylesheet.rules.emplace_back(style_rule);
                 }
             }, rule);
         }
 
-        std::println("Parsed Rules:");
-        for (const auto* rule : rule_objects)
+        if (settings.dump_ruleset)
         {
-            std::println("\t{}", rule->type_str());
-
-            switch (rule->type())
+            std::println("Parsed Rules:");
+            for (const auto& rule : stylesheet.rules)
             {
-                case Rule::Type::StyleRule:
+                std::println("\t{}", rule->type_str());
+    
+                switch (rule->type())
                 {
-                    const auto* style_rule = dynamic_cast<const StyleRule*>(rule);
-                    std::println("\t\tSelector: {}", style_rule->selector_text());
-
-                    std::println("\t\tProperties:");
-                    for (const auto&[name, value] : style_rule->style_declaration().properties())
+                    case Rule::Type::StyleRule:
                     {
-                        std::println("\t\t\t{}: {}", name, value);
+                        const auto* style_rule = dynamic_cast<const StyleRule*>(rule.get());
+                        std::println("\t\tSelector: {}", style_rule->selector_text());
+    
+                        std::println("\t\tProperties:");
+                        for (const auto&[name, value] : style_rule->style_declaration().properties())
+                        {
+                            std::println("\t\t\t{}: {}", name, value);
+                        }
+    
+                        break;
                     }
-
-                    break;
+                    default:
+                        HANAMI_NOT_IMPLEMENTED();
                 }
-                default:
-                    HANAMI_NOT_IMPLEMENTED();
             }
         }
+
+        return stylesheet;
     }
 
     auto Parser::consume_next_input_token() -> const Token&

@@ -61,13 +61,19 @@ namespace Hanami::CSS {
 
     using RuleVariant = std::variant<QualifiedRule>;
 
+    struct ParserSettings
+    {
+        bool dump_tokens = false;
+        bool dump_ruleset = false;
+    };
+    
     class Parser
     {
     public:
-        static void parse_stylesheet_from_file(const std::filesystem::path& path);
+        static auto parse_stylesheet_from_file(const std::filesystem::path& path, ParserSettings settings = {}) -> StyleSheet;
 
     private:
-        void parse_stylesheet();
+        auto parse_stylesheet(ParserSettings settings) -> StyleSheet;
 
         auto consume_next_input_token() -> const Token&;
         auto current_input_token() -> const Token&;

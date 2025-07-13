@@ -5,7 +5,6 @@
 #include <print>
 #include <fstream>
 #include <memory>
-#include <sstream>
 #include <string_view>
 #include <mwl/mwl.hpp>
 #include <Kori/Core.hpp>
@@ -14,8 +13,40 @@
 
 using namespace Hanami;
 
+struct ArgsList
+{
+    std::span<char*> values;
+
+    ArgsList() = default;
+
+    ArgsList(int argc, char* argv[])
+        : values(argv, argc)
+    {
+    }
+
+    [[nodiscard]]
+    auto has_arg(std::string_view arg) const -> bool
+    {
+        return std::ranges::any_of(values, [arg](const char* value) { return arg == value; });
+    }
+};
+
 int main(int argc, char* argv[])
 {
+    ArgsList args;
+
+    auto html_doc_path = "Tests/CSS/Parsing/text_demo.html"sv;
+
+    if (argc > 1 && !std::string_view{ argv[1] }.starts_with("-"))
+    {
+        html_doc_path = argv[1];
+        args = ArgsList{ argc - 2, argv + 2 };
+    }
+    else
+    {
+        args = ArgsList{ argc - 1, argv + 1 };
+    }
+
     auto mwl_state = mwl::State::create({ .client_api = mwl::ClientAPI::Wayland });
     KoriDefer { mwl_state.destroy(); };
 
@@ -41,16 +72,17 @@ int main(int argc, char* argv[])
     });
 
     // CSS
-    CSS::Parser::parse_stylesheet_from_file("Tests/CSS/Parsing/Basic.css");
+    auto stylesheet = CSS::Parser::parse_stylesheet_from_file("Tests/CSS/Parsing/Basic.css", {
+        .dump_tokens = args.has_arg("--dump-css-tokens"),
+        .dump_ruleset = args.has_arg("--dump-css-ruleset")
+    });
 
-    auto path = "Tests/Parsing/comment-before-html-tag.html"sv;
+    auto* document = HTML::Parser::parse_from_file(html_doc_path);
 
-    if (argc > 1)
+    if (args.has_arg("--dump-dom"))
     {
-        path = argv[1];
+        document->print();
     }
-
-    auto* document = HTML::Parser::parse_from_file(path);
 
     std::vector<DOM::Text*> text_elements;
 

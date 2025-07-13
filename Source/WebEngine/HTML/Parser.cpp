@@ -100,7 +100,6 @@ namespace Hanami::HTML {
             )
             {
                 // Process the token according to the rules given in the section corresponding to the current insertion mode in HTML content.
-
                 switch (m_insertion_mode)
                 {
                     // https://html.spec.whatwg.org/multipage/parsing.html#the-initial-insertion-mode

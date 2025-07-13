@@ -166,4 +166,9 @@ namespace Hanami::CSS {
         std::string m_selector_text;
     };
 
+    struct StyleSheet
+    {
+        std::vector<std::unique_ptr<Rule>> rules;
+    };
+
 }
