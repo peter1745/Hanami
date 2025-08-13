@@ -77,6 +77,12 @@ namespace Hanami::DOM {
     {
     public:
         virtual ~Node() noexcept = default;
+        
+        [[nodiscard]]
+        auto document() const noexcept -> Document*
+        {
+            return m_document;
+        }
 
         [[nodiscard]]
         auto first_child() const noexcept -> Node*;

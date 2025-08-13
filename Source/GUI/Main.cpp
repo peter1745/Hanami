@@ -1,6 +1,6 @@
 #include "WebEngine/DOM/Text.hpp"
 #include "WebEngine/HTML/Parser.hpp"
-#include "WebEngine/CSS/Parser.hpp"
+#include "WebEngine/CSS/Tokenizer.hpp"
 
 #include <print>
 #include <fstream>
@@ -72,10 +72,10 @@ int main(int argc, char* argv[])
     });
 
     // CSS
-    auto stylesheet = CSS::Parser::parse_stylesheet_from_file("Tests/CSS/Parsing/Basic.css", {
-        .dump_tokens = args.has_arg("--dump-css-tokens"),
-        .dump_ruleset = args.has_arg("--dump-css-ruleset")
-    });
+    //auto stylesheet = CSS::Parser::parse_stylesheet_from_file("Tests/CSS/Parsing/Basic.css", {
+    //    .dump_tokens = args.has_arg("--dump-css-tokens"),
+    //    .dump_ruleset = args.has_arg("--dump-css-ruleset")
+    //});
 
     auto* document = HTML::Parser::parse_from_file(html_doc_path);
 

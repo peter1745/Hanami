@@ -23,13 +23,15 @@ target_sources(hanami-webengine
 
         # CSS
         CSS/Tokenizer.cpp
-        CSS/Parser.cpp
-        CSS/ObjectModel/Rules.cpp)
+        #CSS/Parser.cpp
+        #CSS/ObjectModel/Rules.cpp
+)
 
 target_include_directories(hanami-webengine PUBLIC ../)
 
 target_link_libraries(hanami-webengine
     PRIVATE
+        stdc++exp
         kori
         simdjson)
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <print>
 #include <string>
 #include <vector>
 #include <cctype>
@@ -9,9 +10,11 @@
 #include <cstdint>
 #include <fstream>
 #include <optional>
+#include <concepts>
 #include <algorithm>
 #include <functional>
 #include <filesystem>
+#include <stacktrace>
 #include <string_view>
 #include <unordered_map>
 
@@ -24,8 +27,39 @@ using namespace std::literals;
     #define HANAMI_TRAP() __debugbreak()
 #endif
 
+namespace Hanami {
+
+    inline void print_not_implemented_message(std::string_view msg = {})
+    {
+        auto st = std::stacktrace::current();
+
+        std::stringstream ss;
+
+        for (size_t i = 1; i < st.size(); ++i)
+        {
+            auto file = std::filesystem::relative(st[i].source_file());
+
+            ss << std::format("    {}: {} in {}:{}\n", i - 1, st[i].description(), file.string(), st[i].source_line());
+
+            if (st[i].description() == "main")
+            {
+                break;
+            }
+        }
+
+        if (msg.empty())
+        {
+            std::println("Not Implemented.\n  Stack: \n{}", ss.str());
+        }
+        else
+        {
+            std::println("Not Implemented: {}.\n  Stack: \n{}", msg, ss.str());
+        }
+    }
+}
+
 #if !defined(HANAMI_NOT_IMPLEMENTED)
-    #define HANAMI_NOT_IMPLEMENTED(...) HANAMI_TRAP()
+    #define HANAMI_NOT_IMPLEMENTED(...) ::Hanami::print_not_implemented_message(__VA_ARGS__); HANAMI_TRAP()
 #endif
 
 namespace Hanami {

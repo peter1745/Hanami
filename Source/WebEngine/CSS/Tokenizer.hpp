@@ -1,74 +1,44 @@
 #pragma once
 
-#include "Kori/Core.hpp"
 #include "WebEngine/Core/Core.hpp"
-
-#include <print>
+#include "Kori/Core.hpp"
 
 namespace Hanami::CSS {
 
-    struct IdentToken
-    {
-        std::string value;
-    };
+    // https://www.w3.org/TR/css-syntax-3/#tokenization
 
-    struct FunctionToken
-    {
-        std::string value;
-    };
-
-    struct AtKeywordToken {};
+    struct IdentToken     { std::string value; };
+    struct FunctionToken  { std::string value; };
+    struct AtKeywordToken { std::string value; };
 
     struct HashToken
     {
-        enum class Type { Unrestricted, ID };
-
-        Type type = Type::Unrestricted;
+        enum class Type { ID, Unrestricted };
         std::string value;
+        Type type = Type::Unrestricted;
     };
 
-    inline auto hash_token_type_str(HashToken::Type type)
-    {
-        switch (type)
-        {
-            case HashToken::Type::Unrestricted: return "Unrestricted";
-            case HashToken::Type::ID: return "ID";
-            default: HANAMI_TRAP();
-        }
-
-        return "Unknown";
-    }
-
-    struct StringToken {};
+    struct StringToken { std::string value; };
     struct BadStringToken {};
-    struct URLToken {};
+
+    struct URLToken { std::string value; };
     struct BadURLToken {};
 
-    struct DelimToken
-    {
-        char value;
-    };
+    struct DelimToken { char value; };
 
-    enum class NumericType
-    {
-        Integer, Number
-    };
-
+    enum class NumericType { Integer, Number };
     struct NumberToken
     {
-        NumericType type;
         double value;
+        NumericType type = NumericType::Integer;
     };
 
-    struct PercentageToken
-    {
-        double value;
-    };
+    struct PercentageToken { double value; };
 
     struct DimensionToken
     {
-        NumericType type;
         double value;
+        NumericType type = NumericType::Integer;
         std::string unit;
     };
 
@@ -78,12 +48,12 @@ namespace Hanami::CSS {
     struct ColonToken {};
     struct SemicolonToken {};
     struct CommaToken {};
-    struct OpenSquareBracketToken {};
-    struct CloseSquareBracketToken {};
-    struct OpenParenthesesToken {};
-    struct CloseParenthesesToken {};
-    struct OpenCurlyBracketToken {};
-    struct CloseCurlyBracketToken {};
+    struct LeftSquareBracketToken {};
+    struct RightSquareBracketToken {};
+    struct LeftParenthesesToken {};
+    struct RightParenthesesToken {};
+    struct LeftCurlyBracketToken {};
+    struct RightCurlyBracketToken {};
     struct EOFToken {};
 
     using Token = std::variant<
@@ -105,81 +75,77 @@ namespace Hanami::CSS {
         ColonToken,
         SemicolonToken,
         CommaToken,
-        OpenSquareBracketToken,
-        CloseSquareBracketToken,
-        OpenParenthesesToken,
-        CloseParenthesesToken,
-        OpenCurlyBracketToken,
-        CloseCurlyBracketToken,
+        LeftSquareBracketToken,
+        RightSquareBracketToken,
+        LeftParenthesesToken,
+        RightParenthesesToken,
+        LeftCurlyBracketToken,
+        RightCurlyBracketToken,
         EOFToken
     >;
 
-    using NumericToken = std::variant<NumberToken, PercentageToken, DimensionToken>;
-
-    inline auto unwrap_numeric_token(const NumericToken& token) -> Token
+    [[nodiscard]]
+    inline auto token_name(const Token& token) -> std::string_view
     {
-        auto result = Token{};
-
+        auto name = std::string_view{};
+        
         std::visit(Kori::VariantOverloadSet {
-            [&](const NumberToken& value) { result = value; },
-            [&](const PercentageToken& value) { result = value; },
-            [&](const DimensionToken& value) { result = value; }
+            [&](const IdentToken&) { name = "IdentToken"; },
+            [&](const FunctionToken&) { name = "FunctionToken"; },
+            [&](const AtKeywordToken&) { name = "AtKeywordToken"; },
+            [&](const HashToken&) { name = "HashToken"; },
+            [&](const StringToken&) { name = "StringToken"; },
+            [&](const BadStringToken&) { name = "BadStringToken"; },
+            [&](const URLToken&) { name = "URLToken"; },
+            [&](const BadURLToken&) { name = "BadURLToken"; },
+            [&](const DelimToken&) { name = "DelimToken"; },
+            [&](const NumberToken&) { name = "NumberToken"; },
+            [&](const PercentageToken&) { name = "PercentageToken"; },
+            [&](const DimensionToken&) { name = "DimensionToken"; },
+            [&](const WhitespaceToken&) { name = "WhitespaceToken"; },
+            [&](const CDOToken&) { name = "CDOToken"; },
+            [&](const CDCToken&) { name = "CDCToken"; },
+            [&](const ColonToken&) { name = "ColonToken"; },
+            [&](const SemicolonToken&) { name = "SemicolonToken"; },
+            [&](const CommaToken&) { name = "CommaToken"; },
+            [&](const LeftSquareBracketToken&) { name = "LeftSquareBracketToken"; },
+            [&](const RightSquareBracketToken&) { name = "RightSquareBracketToken"; },
+            [&](const LeftParenthesesToken&) { name = "LeftParenthesesToken"; },
+            [&](const RightParenthesesToken&) { name = "RightParenthesesToken"; },
+            [&](const LeftCurlyBracketToken&) { name = "LeftCurlyBracketToken"; },
+            [&](const RightCurlyBracketToken&) { name = "RightCurlyBracketToken"; },
+            [&](const EOFToken&) { name = "EOFToken"; }
         }, token);
-
-        return result;
+        
+        return name;
     }
 
-    inline void print_token(const Token& token)
-    {
-        std::visit(Kori::VariantOverloadSet {
-            [](const IdentToken& token) { std::println("IdentToken({})", token.value); },
-            [](const FunctionToken& token) { std::println("FunctionToken({})", token.value); },
-            [](const AtKeywordToken&) { std::println("AtKeywordToken"); },
-            [](const HashToken& token) { std::println("HashToken({}, {})", hash_token_type_str(token.type), token.value); },
-            [](const StringToken&) { std::println("StringToken"); },
-            [](const BadStringToken&) { std::println("BadStringToken"); },
-            [](const URLToken&) { std::println("URLToken"); },
-            [](const BadURLToken&) { std::println("BadURLToken"); },
-            [](const DelimToken& token) { std::println("DelimToken({})", token.value); },
-            [](const NumberToken&) { std::println("NumberToken"); },
-            [](const PercentageToken&) { std::println("PercentageToken"); },
-            [](const DimensionToken&) { std::println("DimensionToken"); },
-            [](const WhitespaceToken&) { std::println("WhitespaceToken"); },
-            [](const CDOToken&) { std::println("CDOToken"); },
-            [](const CDCToken&) { std::println("CDCToken"); },
-            [](const ColonToken&) { std::println("ColonToken"); },
-            [](const SemicolonToken&) { std::println("SemicolonToken"); },
-            [](const CommaToken&) { std::println("CommaToken"); },
-            [](const OpenSquareBracketToken&) { std::println("OpenSquareBracketToken"); },
-            [](const CloseSquareBracketToken&) { std::println("CloseSquareBracketToken"); },
-            [](const OpenParenthesesToken&) { std::println("OpenParenthesesToken"); },
-            [](const CloseParenthesesToken&) { std::println("CloseParenthesesToken"); },
-            [](const OpenCurlyBracketToken&) { std::println("OpenCurlyBracketToken"); },
-            [](const CloseCurlyBracketToken&) { std::println("CloseCurlyBracketToken"); },
-            [](const EOFToken&) { std::println("EOFToken"); },
-        }, token);
-    }
-
-    // TODO(Peter): Abstract some of these functions into a common interface between CSS::Tokenizer and HTML::Parser
     class Tokenizer
     {
     public:
-        auto tokenize(std::string_view input) -> std::vector<Token>;
+        Tokenizer();
+
+        [[nodiscard]]
+        auto run(std::string_view input) -> std::vector<Token>;
 
     private:
+        // https://www.w3.org/TR/css-syntax-3/#consume-a-token
         auto consume_token() -> Token;
-        auto consume_ident_like() -> Token;
-        auto consume_numeric_token() -> NumericToken;
-        auto consume_ident_sequence() -> std::string;
-        auto consume_next_character() noexcept -> char;
 
-        auto consume_number() -> std::pair<NumericType, double>;
-        auto convert_string_to_number(std::string_view repr) -> double;
+        // https://www.w3.org/TR/css-syntax-3/#consume-comments
+        void consume_comments();
+
+        // https://www.w3.org/TR/css-syntax-3/#whitespace
+        auto is_whitespace(char c) const -> bool;
+
+        // https://www.w3.org/TR/css-syntax-3/#ident-start-code-point
+        auto is_ident_start(char c) const -> bool;
+
+        auto next_chars_equals(std::string_view input) const -> bool;
 
     private:
         std::string m_input_stream;
-        size_t m_next_char_idx = 0;
-        bool m_reached_eof = false;
+        size_t m_current_char_idx = 0;
     };
 
 }
