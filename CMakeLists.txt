@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.30)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
 project(hanami VERSION 0.1.0 LANGUAGES CXX)
 
 if(MSVC)

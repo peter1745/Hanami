@@ -16,6 +16,8 @@ namespace Hanami::CSS {
         enum class Type { ID, Unrestricted };
         std::string value;
         Type type = Type::Unrestricted;
+
+        auto type_str() const -> const std::string_view { return type == Type::ID ? "ID" : "Unrestricted"; }
     };
 
     struct StringToken { std::string value; };
@@ -88,7 +90,7 @@ namespace Hanami::CSS {
     inline auto token_name(const Token& token) -> std::string_view
     {
         auto name = std::string_view{};
-        
+
         std::visit(Kori::VariantOverloadSet {
             [&](const IdentToken&) { name = "IdentToken"; },
             [&](const FunctionToken&) { name = "FunctionToken"; },
@@ -116,7 +118,7 @@ namespace Hanami::CSS {
             [&](const RightCurlyBracketToken&) { name = "RightCurlyBracketToken"; },
             [&](const EOFToken&) { name = "EOFToken"; }
         }, token);
-        
+
         return name;
     }
 
@@ -135,17 +137,35 @@ namespace Hanami::CSS {
         // https://www.w3.org/TR/css-syntax-3/#consume-comments
         void consume_comments();
 
+        // https://www.w3.org/TR/css-syntax-3/#consume-an-ident-like-token
+        auto consume_ident_like() -> Token;
+
+        // https://www.w3.org/TR/css-syntax-3/#consume-an-ident-sequence
+        auto consume_ident_sequence() -> std::string;
+
         // https://www.w3.org/TR/css-syntax-3/#whitespace
         auto is_whitespace(char c) const -> bool;
 
         // https://www.w3.org/TR/css-syntax-3/#ident-start-code-point
         auto is_ident_start(char c) const -> bool;
 
+        // https://www.w3.org/TR/css-syntax-3/#ident-code-point
+        auto is_ident_code_point(char c) const -> bool;
+
+        // https://www.w3.org/TR/css-syntax-3/#check-if-two-code-points-are-a-valid-escape
+        auto two_are_valid_escape(char c0, char c1) const -> bool;
+
+        // https://www.w3.org/TR/css-syntax-3/#check-if-three-code-points-would-start-an-ident-sequence
+        auto would_start_ident_sequence(char c0, char c1, char c2) const -> bool;
+
         auto next_chars_equals(std::string_view input) const -> bool;
+
+        // https://www.w3.org/TR/css-syntax-3/#reconsume-the-current-input-code-point
+        void reconsume_current();
 
     private:
         std::string m_input_stream;
-        size_t m_current_char_idx = 0;
+        size_t m_next_char_idx = 0;
     };
 
 }

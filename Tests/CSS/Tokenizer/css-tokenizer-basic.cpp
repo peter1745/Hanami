@@ -21,14 +21,35 @@ DEFINE_SIMPLE_TEST({
         TEST_FAIL("Failed to parse any tokens");
     }
 
+    int32_t indentation_level = 0;
+
     for (const auto& token : tokens)
     {
-        std::println("Token: {}", Hanami::CSS::token_name(token));
-        
-        if (std::holds_alternative<Hanami::CSS::DelimToken>(token))
+        if (std::holds_alternative<Hanami::CSS::LeftCurlyBracketToken>(token))
         {
-            std::println("\tValue: {}", std::get<Hanami::CSS::DelimToken>(token).value);
+            std::println("LeftCurlyBracketToken");
+            ++indentation_level;
+            continue;
         }
+
+        if (std::holds_alternative<Hanami::CSS::RightCurlyBracketToken>(token))
+        {
+            std::println("RightCurlyBracketToken");
+            --indentation_level;
+            continue;
+        }
+
+        for (int32_t i = 0; i < indentation_level; ++i)
+        {
+            std::print("  ");
+        }
+
+        std::visit(Kori::VariantOverloadSet {
+            [](const Hanami::CSS::IdentToken& ident) { std::println("IdentToken ({})", ident.value); },
+            [](const Hanami::CSS::HashToken& hash) { std::println("HashToken({}, {})", hash.type_str(), hash.value); },
+            [](const Hanami::CSS::WhitespaceToken&) { std::print("\r"); },
+            [](const auto& token) { std::println("{}", Hanami::CSS::token_name(token)); }
+        }, token);
     }
 
     TEST_PASS();
