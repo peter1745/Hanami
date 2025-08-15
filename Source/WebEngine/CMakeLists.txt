@@ -23,7 +23,7 @@ target_sources(hanami-webengine
 
         # CSS
         CSS/Tokenizer.cpp
-        #CSS/Parser.cpp
+        CSS/Parser.cpp
         #CSS/ObjectModel/Rules.cpp
 )
 

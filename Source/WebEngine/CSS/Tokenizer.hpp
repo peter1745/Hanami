@@ -121,6 +121,29 @@ namespace Hanami::CSS {
 
         return name;
     }
+    
+    inline void print_token(const Token& token)
+    {
+        std::visit(Kori::VariantOverloadSet {
+            [](const Hanami::CSS::IdentToken& ident) { std::println("IdentToken ({})", ident.value); },
+            [](const Hanami::CSS::HashToken& hash) { std::println("HashToken({}, {})", hash.type_str(), hash.value); },
+            [](const auto& token) { std::println("{}", token_name(token)); }
+        }, token);
+    }
+    
+    template<typename T>
+    requires std::constructible_from<Token, T>
+    auto token_is(const Token& token) -> bool
+    {
+        return std::holds_alternative<T>(token);
+    }
+    
+    template<typename... Ts>
+    requires (std::constructible_from<Token, Ts> || ...)
+    auto token_is_any(const Token& token) -> bool
+    {
+        return (std::holds_alternative<Ts>(token) || ...);
+    }
 
     class Tokenizer
     {

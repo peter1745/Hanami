@@ -44,12 +44,14 @@ DEFINE_SIMPLE_TEST({
             std::print("  ");
         }
 
-        std::visit(Kori::VariantOverloadSet {
-            [](const Hanami::CSS::IdentToken& ident) { std::println("IdentToken ({})", ident.value); },
-            [](const Hanami::CSS::HashToken& hash) { std::println("HashToken({}, {})", hash.type_str(), hash.value); },
-            [](const Hanami::CSS::WhitespaceToken&) { std::print("\r"); },
-            [](const auto& token) { std::println("{}", Hanami::CSS::token_name(token)); }
-        }, token);
+        if (Hanami::CSS::token_is<Hanami::CSS::WhitespaceToken>(token))
+        {
+            std::print("\r");
+        }
+        else
+        {
+            Hanami::CSS::print_token(token);
+        }
     }
 
     TEST_PASS();
