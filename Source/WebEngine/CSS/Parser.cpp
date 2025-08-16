@@ -2,7 +2,12 @@
 
 namespace Hanami::CSS {
 
-    void Parser::parse_from_file(const std::filesystem::path& filepath)
+    Parser::Parser(ParserSettings settings)
+        : m_settings(std::move(settings))
+    {
+    }
+
+    void Parser::parse_from_file(const std::filesystem::path& filepath, ParserSettings settings)
     {
         std::stringstream ss;
         auto stream = std::ifstream{ filepath };
@@ -22,7 +27,45 @@ namespace Hanami::CSS {
             return;
         }
 
-        auto parser = Parser{};
+        if (settings.dump_tokens)
+        {
+            int32_t indentation_level = 0;
+
+            std::println("---------- Tokens ---------");
+            for (const auto& token : tokens)
+            {
+                if (std::holds_alternative<LeftCurlyBracketToken>(token))
+                {
+                    std::println("LeftCurlyBracketToken");
+                    ++indentation_level;
+                    continue;
+                }
+
+                if (std::holds_alternative<RightCurlyBracketToken>(token))
+                {
+                    std::println("RightCurlyBracketToken");
+                    --indentation_level;
+                    continue;
+                }
+
+                for (int32_t i = 0; i < indentation_level; ++i)
+                {
+                    std::print("  ");
+                }
+
+                if (token_is<WhitespaceToken>(token))
+                {
+                    std::print("\r");
+                }
+                else
+                {
+                    print_token(token);
+                }
+            }
+            std::println("---------------------------");
+        }
+
+        auto parser = Parser{ settings };
         parser.m_tokens = std::move(tokens);
         parser.parse_stylesheet();
     }
@@ -52,52 +95,59 @@ namespace Hanami::CSS {
         // Consume a list of rules from input, with the top-level flag set, and set the stylesheet’s value to the result.
         auto rules = consume_rule_list(true);
 
-        auto print_component_value = [](const ComponentValue& value)
+        if (m_settings.dump_rules)
         {
-            std::visit(Kori::VariantOverloadSet {
-                [&](const Token& token)
-                {
-                    print_token(token);
-                },
-                [&](const SimpleBlock&)
-                {
-                    HANAMI_NOT_IMPLEMENTED();
-                }
-            }, value);
-        };
-
-        for (const auto& rule : rules)
-        {
-            std::println("Rule: {{");
-            std::visit(Kori::VariantOverloadSet {
-                [&](const QualifiedRule& rule)
-                {
-                    std::println("\tPrelude: {{");
-                    for (const auto& part : rule.prelude)
+            auto print_component_value = [](const ComponentValue& value)
+            {
+                std::visit(Kori::VariantOverloadSet {
+                    [&](const Token& token)
                     {
-                        std::print("\t\t");
-                        print_component_value(part);
-                    }
-                    std::println("\t}}");
-
-                    std::println("\tBlock: {{");
-
-                    std::print("\t\tToken: ");
-                    print_token(rule.block.token);
-
-                    std::println("\t\tValue: {{");
-                    for (const auto& value : rule.block.value)
+                        print_token(token);
+                    },
+                    [&](const SimpleBlock&)
                     {
-                        std::print("\t\t\t");
-                        print_component_value(value);
+                        HANAMI_NOT_IMPLEMENTED();
                     }
-                    std::println("\t\t}}");
+                }, value);
+            };
 
-                    std::println("\t}}");
-                }
-            }, rule);
-            std::println("}}");
             std::println();
+            std::println("---------- Rules ----------");
+
+            for (const auto& rule : rules)
+            {
+                std::println("Rule: {{");
+                std::visit(Kori::VariantOverloadSet {
+                    [&](const QualifiedRule& rule)
+                    {
+                        std::println("\tPrelude: {{");
+                        for (const auto& part : rule.prelude)
+                        {
+                            std::print("\t\t");
+                            print_component_value(part);
+                        }
+                        std::println("\t}}");
+
+                        std::println("\tBlock: {{");
+
+                        std::print("\t\tToken: ");
+                        print_token(rule.block.token);
+
+                        std::println("\t\tValue: {{");
+                        for (const auto& value : rule.block.value)
+                        {
+                            std::print("\t\t\t");
+                            print_component_value(value);
+                        }
+                        std::println("\t\t}}");
+
+                        std::println("\t}}");
+                    }
+                }, rule);
+                std::println("}}");
+                std::println();
+            }
+            std::println("---------------------------");
         }
 
         // Return the stylesheet.
